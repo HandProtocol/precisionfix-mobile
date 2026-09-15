@@ -1,40 +1,124 @@
 # Handoff — PrecisionFix · 2026-09-15
 
-Client site for PrecisionFix (owner: TBD). Server-rendered single page
-with an owner CMS at `/admin/` (passwordless email link) for all copy and
-photos. Built from `clients/_template` with the `hand-client-site` skill on
-2026-09-15.
+Owner-editable site for **PrecisionFix**, a factory-certified Mercedes-Benz
+mobile mechanic in Austin TX (owner: the mechanic, email TBD; bilingual
+EN/ES). Rebuilt from his old one-page site at percesionfix.netlify.app (that
+URL's "percesion" is a typo; the business is PrecisionFix) on the HAND client
+engine with the `hand-client-site` skill.
 
-**Status:** LIVE at https://precisionfix-austin.netlify.app since 2026-09-15 (provisioned by provision.mjs). Fill in as it progresses.
+**Status:** LIVE at https://precisionfix-austin.netlify.app since 2026-09-15
+(Netlify site `9f248232-981f-4a15-a891-a62f949f92fa`, account cryptokoh;
+`precisionfix.netlify.app` was taken by a stranger, hence `-austin`). Code
+also lives in the private repo **https://github.com/HandProtocol/precisionfix-site**
+(the owner's phone Claude Code works against that repo). Nothing in the
+monorepo is committed.
 
 ## Start here (cold session)
 
-1. Read this file, then `README.md` (architecture, deploy, env vars).
-2. Site pack = `site.config.mjs`, `site/schema.mjs`, `site/page.mjs`,
-   `public/assets/site.css|site.js`. Everything else is engine — do not edit
-   it here; fix in `clients/_template` and run `sync-engine.mjs precisionfix`.
-3. `npm test` runs with no DB. `npm run preview` renders `dist-preview/`.
+1. Read this file, then `README.md` (owner section on top, engine doc below).
+2. Site pack = `site.config.mjs`, `site/themes.mjs`, `site/checklist.mjs`,
+   `site/schema.mjs`, `site/page.mjs`, `public/assets/site.css`,
+   `public/assets/themes/*.css`, `public/assets/site.js`,
+   `public/forms/booking.html`, `public/img/photos/*`, `tests/page.test.mjs`.
+   Everything else is engine: fix in `clients/_template`, then
+   `sync-engine.mjs precisionfix`.
+3. `npm test` (46 tests, no DB). Preview a theme:
+   `node scripts/render-static.mjs --theme=sunset` → `dist-preview/sunset/`.
+   Screenshots: Playwright from gstack with `--no-sandbox`; add `.in` to every
+   `.reveal` before a full-page capture or sections look empty.
+
+## What was built
+
+- **Five themes** the owner switches in `/admin/` → Content → Site → Theme
+  (live on publish) and anyone previews with `?theme=<id>`: `redline`
+  (default; the old site's black/red/amber DNA), `blueprint` (engineering
+  paper, navy + international orange), `chrome` (graphite + champagne serif
+  over the full-bleed photo), `sunset` (cream, coral→gold, stickers,
+  polaroids), `terminal` (phosphor-green diagnostic console). One DOM in
+  `site/page.mjs`; each theme is its own stylesheet + palette + fonts.
+  Redline's palette is also the editor's and the emails'.
+- **Bilingual**: every visible line has an `_es` twin in the schema;
+  `data-es` swap in `site.js`, auto-picks Spanish browsers, EN/ES pill in the
+  nav (owner can hide it: Site → language switch).
+- **Booking form** (`#book`): person, contact preference, car (year/make/
+  model/mileage/VIN), service (the Services list feeds the dropdown), what it
+  is doing, where the car is (cities from Service area), preferred date/time.
+  Netlify Forms (`name="booking"`, definition in `public/forms/booking.html`,
+  posts there; JS shows the thank-you inline). Netlify fires
+  `submission-created` → `lib/forms.mjs` → Resend: owner notification with
+  Reply-To the customer, plus a customer confirmation. Recipients:
+  `PRECISIONFIX_FORM_NOTIFY` env (set to hand@handprotocol.org until the
+  owner's inbox is known) → `forms.booking.notify` → owner emails.
+  **Form detection was OFF on the new site** (`processing_settings.ignore_html_forms`);
+  turned on via API + redeployed. Payments: not built; the form is shaped so a
+  deposit step (Stripe) slots in later (checklist item "Take deposits").
+- **Setup tab in `/admin/`** (engine feature, `config.checklist` →
+  `site/checklist.mjs`): 11 phone-first tasks with why / steps / links /
+  "rather have HAND do it" / done-when; ticks are saved in the content doc
+  (hidden `setup` section) with Publish. Items: theme, copy + phone check,
+  photos, test booking, GitHub account, connect Claude Code, Namecheap
+  nameservers, Search Console (verification code is an editor field →
+  meta tag; sitemap at `/sitemap.xml`), Google Business Profile, retire the
+  old site, deposits (later). `DOMAIN` in `site/checklist.mjs` is a
+  placeholder until the owner tells us the domain.
+- **Photos**: the five cars from the old site, seeded (Porsche featured).
+
+## Engine additions made for this site (in `clients/_template`, synced)
+
+`select` field type; `hidden` sections; `config.checklist` + Setup tab
+(`lib/checklist.mjs`, admin.js/css); `config.forms` + `lib/forms.mjs` +
+`submission-created.mjs`; `headTags({ theme, fonts })` overrides +
+`google_verification` meta; `renderPage({ url })` + `Netlify-Vary: query=theme`;
+`sitemap.mjs`; `render-static.mjs --theme=`; provision `--site-name=`.
+Legacy Care + Three Hands Healing were synced and their tests pass; bump
+their `assetVersion` + redeploy when convenient (admin.js/css changed).
 
 ## Who can sign in (all `owner` role)
 
 | Email | Who |
 |---|---|
 | hand@handprotocol.org | HAND operator inbox, seeded by migration |
+| (owner) | add via Editors tab or `PRECISIONFIX_OWNER_EMAILS` once known |
 
 ## Where things are
 
-- **Code:** `clients/precisionfix/`
-- **Database:** HAND's shared Supabase project `vconmgerblqbworcqkvr`, tables
+- **Code:** `clients/precisionfix/` (monorepo working copy) and
+  `~/Documents/precisionfix-site` (clone of the private repo; the deploy
+  source once git-linked). Keep them in step:
+  `rsync -a --exclude .git --exclude node_modules --exclude dist-preview --exclude 'public/img/placeholder' clients/precisionfix/ ~/Documents/precisionfix-site/`
+  then commit + push there (and the reverse after owner edits land).
+- **Database:** HAND Supabase `vconmgerblqbworcqkvr`, tables
   `command.precisionfix_editors / login_tokens / content / media / revisions`;
-  migration `command/supabase/migrations/046_precisionfix.sql` — applied: **yes** (2026-09-15).
+  migration `command/supabase/migrations/046_precisionfix.sql` — applied: **yes** (2026-09-15), 5 media rows.
 - **Storage:** public bucket `precisionfix`.
-- **Netlify:** project `precisionfix`, site id `9f248232-981f-4a15-a891-a62f949f92fa`, account **cryptokoh**.
-  Env vars per README.
-- **Custom domain:** none yet.
+- **Netlify:** project `precisionfix-austin`, id above, cryptokoh. Env:
+  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, EMAIL_FROM,
+  PRECISIONFIX_SESSION_SECRET, PRECISIONFIX_SITE_NAME, PRECISIONFIX_FORM_NOTIFY.
+- **GitHub:** HandProtocol/precisionfix-site (private), **git-linked to the
+  Netlify site since 2026-09-15** (installation 108354379, branch `main`,
+  publish `public`, no build command): every push to `main` deploys; the
+  first git build succeeded and the booking form stayed registered.
+- **Custom domain:** owner has a Namecheap domain (name unknown). Plan:
+  Netlify DNS zone first, relay the four nameservers to the owner (checklist
+  item), then `custom_domain` + `www` alias, update `productionUrl`, redeploy.
+
+## Why the site stays under HAND's Netlify + a HAND-owned repo
+
+The functions carry the shared Supabase service-role key. On the owner's own
+Netlify account he could read it and reach every `command.*` table, so the
+site stays on cryptokoh; the owner gets `/admin/` (everything content), the
+repo (collaborator, for Claude Code on his phone), and the emails. He does
+not need Netlify access. Netlify Forms submissions are visible only to HAND
+in the dashboard; the Resend email is his copy.
 
 ## Next steps
 
-1. Design pass on the site pack (theme, copy, layout) → `npm test` + preview.
-2. `node .claude/skills/hand-client-site/scripts/provision.mjs precisionfix` (creates
-   the Netlify site, sets env, applies the migration, deploys, verifies).
-3. Owner signs in at `/admin/`, replaces placeholders, publishes.
+1. Ask the owner for: his email (→ Editors + `PRECISIONFIX_FORM_NOTIFY`),
+   the domain name (→ `DOMAIN` in `site/checklist.mjs`, DNS zone), his
+   GitHub username (→ collaborator on the repo), and which theme he likes.
+2. Sign in at `/admin/` as hand@handprotocol.org, publish once (creates the
+   content row; `source` flips to `db`), send a test booking, confirm both
+   emails arrive (Resend log), tick the first checklist items.
+3. Domain (Phase 5 of the skill), then Search Console with the owner.
+4. Commit `clients/precisionfix/`, the migration, the template changes, and
+   the skill changes when koH asks.
