@@ -1,0 +1,118 @@
+/* CHROME & CARBON — the dealership lounge after hours. Graphite, brushed
+   silver, champagne gold, a serif over a full-bleed photo. */
+:root{--r:6px;--r-lg:10px;--r-btn:999px;--line:rgb(201 168 106 / .18);--line-2:rgb(201 168 106 / .4)}
+body{font-weight:300}
+body::before{content:'';position:fixed;inset:0;z-index:-2;pointer-events:none;opacity:.35;background:repeating-linear-gradient(115deg,transparent 0 6px,rgb(255 255 255 / .012) 6px 7px)}
+h1,h2,h3{font-weight:500;letter-spacing:.005em}
+.eyebrow{color:var(--accent);font-family:var(--font-body);font-weight:500;letter-spacing:.32em;font-size:.68rem}
+.section__head{text-align:center;margin-inline:auto;justify-items:center}
+.section__head::before{content:'';width:48px;height:1px;background:var(--accent);margin-bottom:.4rem}
+.section__head h2{font-size:clamp(2.6rem,6vw,4.6rem);font-weight:500}
+.lede{color:var(--ink-2);font-weight:300;text-align:center}
+
+.btn{font-weight:500;letter-spacing:.18em;text-transform:uppercase;font-size:.72rem;padding:1rem 1.7rem}
+.btn--sm{padding:.65rem 1.2rem;font-size:.66rem}
+.btn--lg{padding:1.15rem 2.1rem;font-size:.76rem}
+.btn--primary{background:linear-gradient(135deg,var(--accent-2),var(--accent) 50%,var(--accent-deep));color:var(--on-accent);box-shadow:0 10px 30px -14px rgb(var(--accent-rgb) / .8)}
+.btn--ghost{border-color:rgb(255 255 255 / .25);color:var(--ink);backdrop-filter:blur(8px)}
+.btn--ghost:hover{border-color:var(--accent);color:var(--accent-2)}
+
+.nav{background:linear-gradient(rgb(0 0 0 / .55),transparent)}
+.nav.is-scrolled{background:rgb(var(--bg-rgb) / .82);backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
+.nav__brand{font-size:1.5rem;font-weight:500}
+.nav__brand .mark{color:var(--accent)}
+.nav__links{font-size:.7rem;letter-spacing:.24em;text-transform:uppercase;font-weight:500;color:var(--ink-2)}
+.nav__links a:hover{color:var(--accent-2)}
+.lang-toggle{border-color:rgb(255 255 255 / .25);letter-spacing:.14em;border-radius:999px}
+.menu{background:rgb(var(--bg-rgb) / .97)}
+
+/* hero: the photo, full bleed; the copy centered on it */
+.hero{text-align:center;min-height:100svh;justify-content:flex-end;padding-bottom:6rem}
+.hero__img{opacity:1;filter:saturate(.75) contrast(1.05);transform:scale(1.04);animation:drift 24s ease-in-out infinite alternate}
+@keyframes drift{from{transform:scale(1.04) translate(0,0)}to{transform:scale(1.1) translate(-1.5%,1%)}}
+.hero__veil{background:linear-gradient(180deg,rgb(var(--bg-rgb) / .45),rgb(var(--bg-rgb) / .15) 40%,rgb(var(--bg-rgb) / .75) 80%,var(--bg))}
+.hero__fx i{display:none}
+.hero__grid{grid-template-columns:1fr;justify-items:center}
+.hero__media{display:none}
+.hero__copy{justify-items:center;max-width:820px;gap:1.6rem}
+.hero__eyebrow{display:flex;align-items:center;gap:1rem}
+.hero__eyebrow::before,.hero__eyebrow::after{content:'';width:36px;height:1px;background:var(--accent)}
+.hero__title{font-size:clamp(4.4rem,13vw,10.5rem);line-height:.9;font-weight:500;letter-spacing:-.01em}
+.hero__line--alt{font-style:italic;color:var(--accent-2);font-weight:400}
+.hero__sub{font-size:1.1rem;color:var(--ink-2);font-weight:300;max-width:38rem}
+.hero__cta{justify-content:center}
+.hero__badge{border-color:var(--line-2);color:var(--accent-2);letter-spacing:.24em;font-size:.66rem;font-family:var(--font-body);font-weight:500;background:rgb(0 0 0 / .25);backdrop-filter:blur(10px)}
+.hero__badge::before{background:var(--accent)}
+.hero__scroll{left:50%;transform:translateX(-50%);flex-direction:column;gap:.5rem;letter-spacing:.3em;font-family:var(--font-body);font-size:.6rem}
+.hero__scroll i{width:1px;height:40px}
+
+/* credentials: five columns, hairlines, roman calm */
+.creds{padding-top:1rem}
+.creds__grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.5rem}
+.cred{text-align:center;justify-items:center;padding:1.8rem 1rem 0;border-top:1px solid var(--line-2)}
+.cred:first-child{border-top-color:var(--accent)}
+.cred__icon{font-size:1.7rem;filter:sepia(.5) saturate(.7)}
+.cred__title{font-family:var(--font-display);font-weight:500;font-size:1.25rem;line-height:1.15}
+.cred__body{font-size:.86rem;color:var(--ink-3)}
+
+/* services: two serif columns */
+.services__list{grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:0 3rem}
+.service{border:0;border-bottom:1px solid var(--line);padding:1.2rem .2rem;grid-template-columns:2.4rem minmax(0,1fr) auto}
+.service:hover{transform:none;background:transparent}
+.service:hover .service__title{color:var(--accent-2)}
+.service__n{color:var(--accent);font-family:var(--font-body);font-size:.66rem;letter-spacing:.2em}
+.service__title{font-family:var(--font-display);font-weight:500;font-size:1.45rem;transition:color .3s}
+.service__detail{font-size:.86rem;color:var(--ink-3);font-weight:300}
+.service__arrow{color:var(--accent);opacity:.8}
+@media (max-width:760px){.services__list{grid-template-columns:1fr}}
+
+/* why: glass */
+.why__grid{grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.2rem}
+.reason{background:rgb(255 255 255 / .025);border:1px solid var(--line);border-radius:var(--r-lg);backdrop-filter:blur(12px);padding:2rem 1.7rem}
+.reason::after{content:'';position:absolute;inset:0;border-radius:inherit;background:radial-gradient(240px circle at var(--mx,50%) var(--my,0%),rgb(var(--accent-rgb) / .14),transparent 60%);opacity:0;transition:opacity .4s;pointer-events:none}
+.reason:hover::after{opacity:1}
+.reason__n{color:var(--accent);font-family:var(--font-body);font-size:.64rem;letter-spacing:.24em}
+.reason__title{font-family:var(--font-display);font-weight:500;font-size:1.5rem}
+.reason__body{font-weight:300;color:var(--ink-2)}
+
+/* gallery: three across, colour arrives on hover */
+.gallery{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px}
+.tile__btn{border-radius:var(--r);aspect-ratio:4/3}
+.tile__btn img{filter:grayscale(.35) contrast(1.05);transition:transform 1s var(--ease),filter .6s}
+.tile:hover .tile__btn img{filter:none;transform:scale(1.04)}
+.tile__meta{padding:.8rem .3rem .2rem;font-size:.78rem;letter-spacing:.04em}
+.tile__n{color:var(--accent);font-family:var(--font-body);font-size:.62rem;letter-spacing:.2em}
+.tile__title{font-weight:500;color:var(--ink)}
+.tile__cap{color:var(--ink-3);font-weight:300}
+
+/* area: a line of cities, gold-dotted */
+.area .section__head{max-width:none}
+.area__tags{justify-content:center;gap:.4rem 1.4rem}
+.area__tags li{border:0;padding:.2rem 0;font-family:var(--font-display);font-size:1.4rem;font-weight:500;letter-spacing:0;text-transform:none;position:relative}
+.area__tags li+li::before{content:'·';position:absolute;left:-1rem;color:var(--accent)}
+
+/* booking: the concierge desk */
+.book{background:linear-gradient(180deg,var(--bg),var(--bg-2))}
+.book .section__head{text-align:left;justify-items:start;margin-inline:0}
+.book .section__head::before{margin-left:0}
+.book .lede{text-align:left}
+.contact__title{font-size:1.9rem;font-weight:500}
+.contact__phone{font-weight:500;color:var(--accent-2);font-size:clamp(2.4rem,5vw,3.4rem)}
+.contact__meta dt{font-family:var(--font-body);letter-spacing:.2em;font-size:.64rem;color:var(--accent)}
+.form{background:rgb(255 255 255 / .03);border:1px solid var(--line-2);backdrop-filter:blur(16px);border-radius:var(--r-lg);box-shadow:0 40px 100px -40px rgb(0 0 0 / .8)}
+.form__group>legend{font-size:1.55rem;font-weight:500}
+.form__step{font-family:var(--font-body);font-size:.64rem;letter-spacing:.24em;color:var(--accent)}
+.field>span,.field>legend>span{font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;font-weight:500;color:var(--ink-3)}
+.field input,.field select,.field textarea{background:rgb(0 0 0 / .3);border-color:var(--line);border-radius:var(--r)}
+.field select{background-color:rgb(0 0 0 / .3)}
+.choice{border-color:var(--line-2);font-weight:500;letter-spacing:.06em}
+.form .btn--primary{width:100%}
+.form__note{font-size:.76rem;letter-spacing:.04em}
+.form__done{border-color:var(--accent);background:rgb(var(--accent-rgb) / .06);border-radius:var(--r-lg)}
+.form__done h3{font-weight:500;font-size:1.7rem}
+
+.foot{border-top:1px solid var(--line);font-size:.8rem;letter-spacing:.04em}
+.foot__brand{font-size:1.5rem;font-weight:500}
+.foot__brand .mark{color:var(--accent)}
+.callbar{background:rgb(var(--bg-rgb) / .85);backdrop-filter:blur(18px);border-top-color:var(--line)}
+@media (max-width:899px){.hero{min-height:92svh;justify-content:flex-end;padding-bottom:3.5rem}.hero__title{font-size:clamp(3.6rem,17vw,6rem)}}

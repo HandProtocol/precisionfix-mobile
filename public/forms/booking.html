@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- Netlify Forms definition for the booking form that site/page.mjs renders
+     on the home page. Netlify reads this static file at deploy time to
+     register the form and its fields; the live form posts here with the same
+     names. Keep the field names in sync with page.mjs and site.config.mjs
+     (forms.booking.fields). Not linked from anywhere; robots stay out. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Booking</title></head>
+<body>
+<form name="booking" method="POST" action="/forms/booking.html" data-netlify="true" netlify-honeypot="bot-field" hidden>
+  <input type="hidden" name="form-name" value="booking">
+  <input name="bot-field">
+  <input name="name">
+  <input name="phone">
+  <input name="email">
+  <input name="contact_pref">
+  <input name="vehicle_year">
+  <input name="vehicle_make">
+  <input name="vehicle_model">
+  <input name="mileage">
+  <input name="vin">
+  <input name="service">
+  <textarea name="issue"></textarea>
+  <input name="address">
+  <input name="city">
+  <input name="preferred_date">
+  <input name="preferred_time">
+  <input name="lang">
+  <input name="theme">
+</form>
+<p>Thanks. Your request was sent. <a href="/">Back to PrecisionFix</a></p>
+</body></html>

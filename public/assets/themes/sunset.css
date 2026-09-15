@@ -1,0 +1,128 @@
+/* SUNSET GARAGE — the friendly neighborhood mechanic. Cream paper, a
+   coral-to-gold sunset, chunky rounded cards, tilted photos, stickers. */
+:root{--r:14px;--r-lg:24px;--r-btn:999px;--line:rgb(42 26 58 / .12);--line-2:rgb(42 26 58 / .3);--sun:linear-gradient(135deg,var(--accent-3),var(--accent-2) 45%,var(--accent))}
+body{font-weight:600}
+h1,h2,h3{font-weight:800;letter-spacing:-.03em}
+.eyebrow{display:inline-flex;align-items:center;gap:.5rem;padding:.4rem .9rem;border-radius:999px;background:var(--ink);color:var(--bg);font-family:var(--font-body);font-weight:800;font-size:.72rem;letter-spacing:.12em}
+.section__head .eyebrow{justify-self:start}
+.section__head h2{font-size:clamp(2.4rem,6vw,4.4rem);line-height:.98}
+.lede{color:var(--ink-2);font-weight:600}
+
+.btn{font-weight:800;font-size:.95rem;padding:.95rem 1.5rem;letter-spacing:-.01em}
+.btn--lg{padding:1.15rem 1.9rem;font-size:1.05rem}
+.btn--primary{background:var(--sun);color:#fff;box-shadow:0 5px 0 var(--accent-deep);text-shadow:0 1px 0 rgb(0 0 0 / .15)}
+.btn--primary:hover{transform:translateY(-2px);box-shadow:0 7px 0 var(--accent-deep)}
+.btn--primary:active{transform:translateY(3px);box-shadow:0 2px 0 var(--accent-deep)}
+.btn--ghost{border:2px solid var(--ink);color:var(--ink);background:var(--bg)}
+.btn--ghost:hover{background:var(--ink);color:var(--bg)}
+
+.nav{background:rgb(var(--bg-rgb) / .8);backdrop-filter:blur(12px)}
+.nav.is-scrolled{border-bottom:2px solid var(--ink)}
+.nav__brand{font-weight:800;font-size:1.3rem;letter-spacing:-.03em}
+.nav__brand .mark{color:var(--accent)}
+.nav__links{gap:.3rem;font-weight:800;font-size:.9rem}
+.nav__links a{padding:.45rem .8rem;border-radius:999px;transition:background .2s}
+.nav__links a:hover{background:var(--bg-3)}
+.lang-toggle{border:2px solid var(--ink);font-weight:800}
+.menu{background:var(--bg-2)}
+.menu nav{font-weight:800}
+
+/* hero: the sunset behind a tilted photo, stickers, a chunky wordmark */
+.hero{padding-bottom:5rem}
+.hero__img{display:none}
+.hero__fx i:nth-child(1){right:-12%;top:8%;width:min(62vw,720px);height:min(62vw,720px);border-radius:50%;background:var(--sun);opacity:.9;filter:blur(2px);animation:rise 12s ease-in-out infinite alternate}
+.hero__fx i:nth-child(2){left:-8%;bottom:-8%;width:34vw;height:34vw;border-radius:50%;background:radial-gradient(circle,rgb(123 63 228 / .28),transparent 65%)}
+.hero__fx i:nth-child(3){left:38%;top:-10%;width:22vw;height:22vw;border-radius:50%;background:radial-gradient(circle,rgb(56 189 248 / .35),transparent 65%)}
+@keyframes rise{from{transform:translateY(2%) scale(1)}to{transform:translateY(-3%) scale(1.04)}}
+.hero__grid{align-items:center}
+.hero__eyebrow{background:var(--accent);color:#fff}
+.hero__title{font-size:clamp(4.4rem,14vw,9.5rem);line-height:.88;letter-spacing:-.05em}
+.hero__line--alt{background:var(--sun);-webkit-background-clip:text;background-clip:text;color:transparent;padding-right:.1em}
+.hero__sub{font-size:1.15rem;color:var(--ink-2)}
+.hero__badge{border:2px solid var(--ink);border-radius:999px;font-family:var(--font-body);font-weight:800;letter-spacing:.04em;text-transform:none;font-size:.82rem;background:#fff}
+.hero__badge::before{background:var(--accent-2)}
+.decor--stickers{display:flex;flex-wrap:wrap;gap:.5rem}
+.decor--stickers li{padding:.45rem .9rem;border-radius:999px;font-weight:800;font-size:.8rem;color:#fff;background:var(--purple);transform:rotate(-3deg);box-shadow:0 3px 0 rgb(0 0 0 / .18)}
+.decor--stickers li:nth-child(2){background:var(--sky);transform:rotate(2deg)}
+.decor--stickers li:nth-child(3){background:var(--accent-2);transform:rotate(-1.5deg)}
+.hero__media{transform:rotate(-3deg);padding:12px 12px 14px;background:#fff;border-radius:var(--r-lg);box-shadow:0 30px 60px -30px rgb(42 26 58 / .5),0 8px 0 var(--ink);transition:transform .6s var(--ease)}
+.hero__media:hover{transform:rotate(-1deg) translateY(-4px)}
+.hero__photo{border-radius:calc(var(--r-lg) - 8px);aspect-ratio:4/3}
+.hero__cap{font-weight:700;color:var(--ink-2);font-size:.85rem;padding:.2rem .4rem 0}
+.hero__scroll{font-family:var(--font-body);font-weight:800;letter-spacing:.1em}
+
+/* credentials: pastel cards, big icons in circles */
+.creds__grid{gap:1rem;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.cred{border-radius:var(--r-lg);padding:1.6rem;background:var(--bg-2);transition:transform .4s var(--ease)}
+.cred:hover{transform:rotate(-1deg) translateY(-3px)}
+.cred:nth-child(5n+1){background:var(--accent-3)}
+.cred:nth-child(5n+2){background:rgb(56 189 248 / .22)}
+.cred:nth-child(5n+3){background:rgb(123 63 228 / .16)}
+.cred:nth-child(5n+4){background:rgb(255 138 61 / .25)}
+.cred__icon{width:52px;height:52px;display:grid;place-items:center;background:#fff;border-radius:50%;font-size:1.5rem;box-shadow:0 3px 0 rgb(42 26 58 / .15)}
+.cred__title{font-family:var(--font-display);font-size:1.15rem}
+.cred__body{font-size:.9rem;color:var(--ink-2)}
+
+/* services: chunky two-up cards */
+.services__list{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:.9rem}
+.service{border:2px solid var(--ink);border-radius:var(--r);background:#fff;padding:1.1rem 1.2rem;grid-template-columns:auto minmax(0,1fr) auto;box-shadow:0 4px 0 var(--ink);transition:transform .35s var(--ease),box-shadow .35s var(--ease)}
+.service:hover{transform:translate(-2px,-3px);box-shadow:0 7px 0 var(--ink)}
+.service__n{width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:var(--accent-3);color:var(--ink);font-family:var(--font-body);font-weight:800;font-size:.8rem}
+.service:nth-child(3n+2) .service__n{background:rgb(56 189 248 / .45)}
+.service:nth-child(3n) .service__n{background:rgb(255 138 61 / .5)}
+.service__title{font-family:var(--font-display);font-weight:800;font-size:1.1rem;letter-spacing:-.02em}
+.service__detail{font-weight:600;color:var(--ink-3)}
+.service__arrow{opacity:1;color:var(--accent)}
+
+/* why: four colours */
+.why{background:var(--bg-2);border-radius:var(--r-lg);margin-inline:var(--gutter)}
+.why__grid{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem}
+.reason{background:#fff;border:0;border-radius:var(--r-lg);border-top:8px solid var(--accent);padding:1.7rem 1.5rem;box-shadow:0 12px 30px -20px rgb(42 26 58 / .4)}
+.reason:nth-child(2){border-top-color:var(--accent-2)}.reason:nth-child(3){border-top-color:var(--purple)}.reason:nth-child(4){border-top-color:var(--sky)}
+.reason__n{font-family:var(--font-body);font-weight:800;color:var(--ink-3);font-size:.72rem;letter-spacing:.12em}
+.reason__title{font-family:var(--font-display);font-size:1.35rem}
+
+/* gallery: polaroids on the fridge */
+.gallery{grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1.6rem;padding:.5rem}
+.tile{background:#fff;padding:10px 10px 12px;border-radius:6px;box-shadow:0 14px 30px -18px rgb(42 26 58 / .55),0 2px 0 rgb(42 26 58 / .1);transform:rotate(-2deg);transition:transform .5s var(--ease)}
+.tile:nth-child(2n){transform:rotate(1.5deg)}.tile:nth-child(3n){transform:rotate(-1deg)}
+.tile:hover{transform:rotate(0) scale(1.03);z-index:2}
+.tile__btn{border-radius:2px;aspect-ratio:1}
+.tile__meta{padding:.7rem .2rem 0;font-size:.85rem;color:var(--ink-2);font-weight:700}
+.tile__n{display:none}
+.tile__title{grid-column:1/-1;color:var(--ink)}
+.tile__cap{grid-column:1/-1;font-style:italic;font-weight:600}
+
+/* area: bubbly pills */
+.area__tags li{background:#fff;border:2px solid var(--ink);border-radius:999px;font-family:var(--font-body);font-weight:800;font-size:.88rem;letter-spacing:0;box-shadow:0 3px 0 var(--ink)}
+.area__tags li:hover{background:var(--accent-3)}
+
+/* booking: the sunset band, a white card on it */
+.book{background:var(--sun);color:#fff;border-radius:var(--r-lg);margin:0 var(--gutter);padding:clamp(3rem,7vw,6rem) 0}
+.book .eyebrow{background:#fff;color:var(--ink)}
+.book .lede,.book .contact__body{color:rgb(255 255 255 / .9)}
+.book .contact__title{font-size:1.9rem}
+.book .contact__phone{color:#fff;font-size:clamp(2.4rem,5vw,3.4rem);letter-spacing:-.04em;text-shadow:0 3px 0 rgb(0 0 0 / .15)}
+.book .btn--ghost{border-color:#fff;color:#fff;background:transparent}
+.book .btn--ghost:hover{background:#fff;color:var(--ink)}
+.book .contact__meta div{border-color:rgb(255 255 255 / .35)}
+.book .contact__meta dt{color:rgb(255 255 255 / .85);font-family:var(--font-body);font-weight:800;letter-spacing:.06em;text-transform:none}
+.form{background:#fff;color:var(--ink);border:0;box-shadow:0 10px 0 var(--ink),0 40px 60px -30px rgb(0 0 0 / .4)}
+.form__group>legend{font-size:1.4rem;letter-spacing:-.02em}
+.form__step{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--sun);color:#fff;font-family:var(--font-body);font-weight:800;font-size:.72rem;letter-spacing:0}
+.field>span,.field>legend>span{font-weight:800;color:var(--ink-2);font-size:.84rem}
+.field input,.field select,.field textarea{background:var(--bg);border:2px solid var(--line);border-radius:var(--r)}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--ink);box-shadow:0 3px 0 var(--ink)}
+.field select{background-color:var(--bg)}
+.choice{border:2px solid var(--line);font-weight:800}
+.choice:has(input:checked){border-color:var(--ink);background:var(--accent-3)}
+.form .btn--primary{width:100%}
+.form__note{font-weight:700;color:var(--ink-3)}
+.form__done{border:2px solid var(--ink);background:var(--accent-3);border-radius:var(--r-lg)}
+.form__check{background:var(--sun)}
+
+.foot{border:0;padding-top:4rem;font-weight:700}
+.foot__brand{font-weight:800;font-size:1.5rem;letter-spacing:-.03em}
+.foot__brand .mark{color:var(--accent)}
+.callbar{background:rgb(var(--bg-rgb) / .94);border-top:2px solid var(--ink)}
+@media (max-width:899px){.hero__media{transform:rotate(-2deg);margin-top:1rem}.why,.book{margin-inline:0;border-radius:0}}

@@ -1,0 +1,116 @@
+/* BLUEPRINT — a service manual on engineering paper. Light, gridded, navy
+   ink, international-orange callouts, figure plates and dimension ticks. */
+:root{--r:2px;--r-lg:3px;--r-btn:2px;--line:rgb(31 79 176 / .28);--line-2:rgb(31 79 176 / .5);--grid:rgb(31 79 176 / .11)}
+body{background-color:var(--bg);background-image:
+  linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+  linear-gradient(rgb(31 79 176 / .05) 1px,transparent 1px),linear-gradient(90deg,rgb(31 79 176 / .05) 1px,transparent 1px);
+  background-size:120px 120px,120px 120px,24px 24px,24px 24px;background-attachment:fixed}
+h1,h2,h3{font-weight:700;letter-spacing:-.02em}
+.eyebrow{color:var(--blue);display:flex;align-items:center;gap:.8rem;font-weight:500}
+.section__head .eyebrow::before{content:'SEC.'}
+.section__head .eyebrow::after{content:'';flex:1;height:1px;background:var(--blue);opacity:.4;max-width:220px}
+.lede{color:var(--ink-2)}
+
+.btn{text-transform:uppercase;letter-spacing:.1em;font-family:var(--font-mono);font-size:.78rem;font-weight:600}
+.btn--lg{font-size:.84rem}
+.btn--primary{background:var(--accent);color:#fff;box-shadow:3px 3px 0 var(--ink)}
+.btn--primary:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--ink)}
+.btn--ghost{border:1.5px solid var(--ink);color:var(--ink)}
+.btn--ghost:hover{background:var(--ink);color:var(--bg)}
+
+.nav{background:rgb(var(--bg-rgb) / .92);border-bottom:1px solid var(--line-2)}
+.nav.is-scrolled{box-shadow:0 8px 30px -20px rgb(20 33 61 / .5)}
+.nav__brand{font-weight:700;letter-spacing:-.01em}
+.nav__brand .mark{color:var(--accent)}
+.nav__links{font-family:var(--font-mono);font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+.nav__links a{position:relative;padding:.2rem 0}
+.nav__links a:hover{color:var(--accent)}
+.lang-toggle{font-family:var(--font-mono);border-color:var(--ink)}
+.menu{background:var(--bg)}
+
+/* hero: copy on a ruled margin, photo as FIG. 01 */
+.hero{padding-top:calc(var(--nav-h) + 3rem)}
+.hero__bg{display:none}
+.hero__copy{position:relative;padding-left:1.6rem;border-left:1.5px solid var(--ink)}
+.hero__copy::before{content:'';position:absolute;left:-1.5px;top:0;bottom:0;width:10px;background:repeating-linear-gradient(180deg,var(--ink) 0 1.5px,transparent 1.5px 24px)}
+.hero__eyebrow{font-weight:600}
+.hero__eyebrow::before{content:'▸ '}
+.hero__title{font-size:clamp(3.8rem,12vw,8.5rem);line-height:.92;letter-spacing:-.04em}
+.hero__line--alt{color:transparent;-webkit-text-stroke:2px var(--ink);text-stroke:2px var(--ink)}
+.hero__sub{color:var(--ink-2)}
+.hero__badge{color:var(--accent-2);border:1px dashed var(--accent);border-radius:0;background:rgb(255 90 31 / .06)}
+.hero__badge::before{border-radius:0;background:var(--accent)}
+.hero__media{padding:10px;border:1px solid var(--ink);background:var(--bg);box-shadow:8px 8px 0 rgb(31 79 176 / .12)}
+.hero__media::before,.hero__media::after{content:'';position:absolute;width:14px;height:14px;border:1.5px solid var(--accent)}
+.hero__media::before{left:-8px;top:-8px;border-right:0;border-bottom:0}
+.hero__media::after{right:-8px;bottom:-8px;border-left:0;border-top:0}
+.hero__photo{border-radius:0;aspect-ratio:4/3;filter:contrast(1.05)}
+.hero__cap{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin:.7rem 0 0;padding-top:.6rem;border-top:1px dashed var(--line-2)}
+.decor--plate{display:inline-block;color:var(--accent);font-weight:600}
+.decor--plate::after{content:' —'}
+.hero__scroll{color:var(--blue)}
+.hero__scroll i{background:var(--blue)}
+
+/* credentials: a spec sheet */
+.creds__grid{grid-template-columns:1fr;gap:0;border:1px solid var(--ink);background:var(--bg)}
+.cred{grid-template-columns:3rem minmax(0,1fr);grid-auto-flow:column;align-items:start;gap:.2rem 1.2rem;padding:1.1rem 1.4rem;border-bottom:1px solid var(--line)}
+.cred:last-child{border-bottom:0}
+.cred__icon{grid-row:span 2;font-size:1.4rem;filter:grayscale(1) contrast(1.4)}
+.cred__title{font-family:var(--font-display);font-size:1.05rem}
+.cred__body{font-size:.9rem}
+.cred:first-child{background:rgb(255 90 31 / .06);border-left:4px solid var(--accent)}
+
+/* services: the index, with leaders */
+.services__list{gap:0;border-top:1px solid var(--ink)}
+.service{border:0;border-bottom:1px solid var(--line-2);padding:1rem .4rem;grid-template-columns:3rem minmax(0,1fr) auto}
+.service:hover{background:rgb(31 79 176 / .05)}
+.service__n{color:var(--blue);font-weight:600}
+.service__title{font-family:var(--font-display);font-weight:700;font-size:1.1rem}
+.service__detail{font-family:var(--font-mono);font-size:.8rem;color:var(--ink-3)}
+.service__arrow{color:var(--accent);opacity:1;width:12px;height:12px;border-width:2px}
+
+/* why: annotated notes */
+.why__grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem}
+.reason{border:1px solid var(--ink);background:var(--bg);padding:1.8rem 1.6rem 1.6rem}
+.reason__n{position:absolute;top:-.7rem;left:1rem;padding:.1rem .5rem;background:var(--accent);color:#fff;font-weight:600;letter-spacing:.14em}
+.reason__n::before{content:'NOTE '}
+.reason__title{font-family:var(--font-display);font-size:1.25rem}
+
+/* gallery: plates */
+.gallery{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.4rem}
+.tile{border:1px solid var(--ink);padding:8px;background:var(--bg)}
+.tile__btn{border-radius:0}
+.tile__btn img{filter:saturate(.85)}
+.tile__meta{padding:.7rem .2rem .1rem;border-top:1px dashed var(--line-2);margin-top:8px;font-family:var(--font-mono);font-size:.74rem;text-transform:uppercase;letter-spacing:.06em}
+.tile__n{color:var(--accent);font-weight:600}
+.tile__n::before{content:'PLATE '}
+.tile__title{font-weight:600}
+
+/* area */
+.area__tags li{border:1px solid var(--blue);color:var(--blue);border-radius:0;background:var(--bg);font-weight:500}
+.area__tags li:hover{background:var(--blue);color:var(--bg)}
+
+/* booking: a work order */
+.book{background:rgb(31 79 176 / .04);border-top:1px solid var(--ink)}
+.contact__title{font-size:1.6rem}
+.contact__phone{color:var(--ink);font-family:var(--font-mono);font-weight:600;letter-spacing:-.02em}
+.contact__meta div{border-color:var(--line-2)}
+.form{background:var(--bg);border:1px solid var(--ink);outline:1px solid var(--ink);outline-offset:5px;border-radius:0;position:relative}
+.form::before{content:'WORK ORDER';position:absolute;top:-.7rem;left:1.4rem;padding:0 .5rem;background:var(--bg);font-family:var(--font-mono);font-size:.68rem;letter-spacing:.2em;color:var(--accent);font-weight:600}
+.form__group>legend{font-family:var(--font-mono);font-size:.82rem;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+.form__step{color:var(--accent)}
+.form__step::after{content:' //'}
+.field>span,.field>legend>span{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.field input,.field select,.field textarea{background:transparent;border:0;border-bottom:1.5px solid var(--ink);border-radius:0;padding-inline:.2rem}
+.field input:focus,.field select:focus,.field textarea:focus{box-shadow:none;border-color:var(--accent);background:rgb(255 90 31 / .04)}
+.field select{background-color:transparent}
+.choice{border-radius:0;border-color:var(--ink)}
+.choice:has(input:checked){background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.form .btn--primary{width:100%}
+.form__note{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.04em}
+.form__done{border:1px dashed var(--accent);border-radius:0}
+
+.foot{border-top:1px solid var(--ink);font-family:var(--font-mono);font-size:.78rem}
+.foot__brand{font-weight:700}
+.foot__brand .mark{color:var(--accent)}
+.callbar{background:rgb(var(--bg-rgb) / .95);border-top:1px solid var(--ink)}
