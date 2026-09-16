@@ -111,6 +111,54 @@ repo (collaborator, for Claude Code on his phone), and the emails. He does
 not need Netlify access. Netlify Forms submissions are visible only to HAND
 in the dashboard; the Resend email is his copy.
 
+## Verified live (2026-09-15)
+
+- `/` 200, `data-theme="redline"`, no Netlify badge, owner link, theme block;
+  `?theme=sunset` → sunset, `?theme=bogus` → redline; `Netlify-Vary: query=theme`.
+- `/admin/` 200 (Redline-themed login); `/api/content` ok, `source=defaults`,
+  5 media rows; `/api/auth/me` 401.
+- `/sitemap.xml` 200 with the current host; `/forms/booking.html` 200.
+- Netlify Forms: `booking` registered with 18 fields after enabling detection.
+- Git link: a build triggered from the repo went `new → building → ready`,
+  the home page still served, the form stayed registered.
+- Playwright (`--no-sandbox`): every theme at 1440 and 390 wide, zero
+  console errors, zero horizontal overflow. Contact sheets were sent to koH.
+- Not yet exercised live: an actual form submission → the two Resend emails
+  (unit-tested with a mocked Resend; do the real one when signed in), a
+  magic-link sign-in on this site, a photo upload.
+
+## Known gaps and risks
+
+- `contact.email` is empty and `PRECISIONFIX_FORM_NOTIFY` = hand@handprotocol.org
+  until the owner gives an address. Booking emails come from HAND's Resend
+  sender (`EMAIL_FROM` copied from ZeroBlur); a sender on his own domain is a
+  later nicety (DNS records on Netlify DNS).
+- Netlify Forms free tier: 100 submissions/month, then $19/mo. Fine for a
+  one-man shop; watch it if he grows.
+- `submission-created.mjs` uses the classic `handler` signature on purpose
+  (event-triggered functions document that form). If Netlify ever logs
+  "no handler", that is the place to look.
+- The hero wordmark comes from `hero.headline` split on newlines
+  ("Precision\nFix"); if the owner types one line the second, colored line
+  disappears (by design, but tell him).
+- Redline's "BOOK NOW" watermark is decorative CSS `content`, so it is not
+  translated; the rest of the page is.
+- Legacy Care + Three Hands Healing received the engine sync (admin.js/css
+  changed) but have not been redeployed; bump their `assetVersion` and
+  redeploy with `--skip-functions-cache` when convenient. Their tests pass.
+- `clients/precisionfix/.netlify/` is the CLI's state dir (gitignored); the
+  standalone repo excludes it.
+
+## Message to send the owner (once his email is added)
+
+> Your new site is live at https://precisionfix-austin.netlify.app (it moves
+> to your own domain next). Open https://precisionfix-austin.netlify.app/admin/
+> on your phone, type your email, tap the link we send you: that is the
+> editor. Start with the **Setup** tab, it lists everything left in order,
+> written for your phone. Try the five looks with the Theme dropdown under
+> Site. Every line is yours to change, in English and Spanish. Send me your
+> Namecheap domain name and your GitHub username when you have them.
+
 ## Next steps
 
 1. Ask the owner for: his email (→ Editors + `PRECISIONFIX_FORM_NOTIFY`),
