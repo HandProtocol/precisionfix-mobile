@@ -1,7 +1,7 @@
-# Handoff — PrecisionFix · 2026-09-15
+# Handoff: PrecisionFix · 2026-09-15
 
 Owner-editable site for **PrecisionFix**, a factory-certified Mercedes-Benz
-mobile mechanic in Austin TX (owner: the mechanic, email TBD; bilingual
+mobile mechanic in Austin TX (owner: Alex, alexb04.uti@gmail.com; bilingual
 EN/ES). Rebuilt from his old one-page site at percesionfix.netlify.app (that
 URL's "percesion" is a typo; the business is PrecisionFix) on the HAND client
 engine with the `hand-client-site` skill.
@@ -12,6 +12,13 @@ engine with the `hand-client-site` skill.
 also lives in the private repo **https://github.com/HandProtocol/precisionfix-site**
 (the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
+
+**2026-09-15 late checkpoint.** Owners added: alexb04.uti@gmail.com (Alex)
+and cryptokoh@gmail.com, as rows in `command.precisionfix_editors` plus
+`PRECISIONFIX_OWNER_EMAILS` on the Netlify site. The Setup checklist gained
+item 12, "Create your Supabase account" (standalone repo commit `ed0bf52`).
+Deployed by CLI; see the GitHub bullet under "Where things are" for the state
+of the git link.
 
 ## Start here (cold session)
 
@@ -53,11 +60,12 @@ monorepo is committed.
   turned on via API + redeployed. Payments: not built; the form is shaped so a
   deposit step (Stripe) slots in later (checklist item "Take deposits").
 - **Setup tab in `/admin/`** (engine feature, `config.checklist` →
-  `site/checklist.mjs`): 11 phone-first tasks with why / steps / links /
+  `site/checklist.mjs`): 12 phone-first tasks with why / steps / links /
   "rather have HAND do it" / done-when; ticks are saved in the content doc
   (hidden `setup` section) with Publish. Items: theme, copy + phone check,
-  photos, test booking, GitHub account, connect Claude Code, Namecheap
-  nameservers, Search Console (verification code is an editor field →
+  photos, test booking, GitHub account, connect Claude Code, Supabase account
+  (added 2026-09-15 at koH's ask, so his data can later move to a project he
+  owns), Namecheap nameservers, Search Console (verification code is an editor field →
   meta tag; sitemap at `/sitemap.xml`), Google Business Profile, retire the
   old site, deposits (later). `DOMAIN` in `site/checklist.mjs` is a
   placeholder until the owner tells us the domain.
@@ -78,7 +86,12 @@ their `assetVersion` + redeploy when convenient (admin.js/css changed).
 | Email | Who |
 |---|---|
 | hand@handprotocol.org | HAND operator inbox, seeded by migration |
-| (owner) | add via Editors tab or `PRECISIONFIX_OWNER_EMAILS` once known |
+| alexb04.uti@gmail.com | Alex, the owner. Row inserted 2026-09-15 (management API) |
+| cryptokoh@gmail.com | koH. Row inserted 2026-09-15 |
+
+Both are also in `PRECISIONFIX_OWNER_EMAILS` on the Netlify site, which
+auto-provisions them as owners if the rows are ever deleted. Nobody has signed
+in yet (`last_login_at` is null on every row).
 
 ## Where things are
 
@@ -89,15 +102,23 @@ their `assetVersion` + redeploy when convenient (admin.js/css changed).
   then commit + push there (and the reverse after owner edits land).
 - **Database:** HAND Supabase `vconmgerblqbworcqkvr`, tables
   `command.precisionfix_editors / login_tokens / content / media / revisions`;
-  migration `command/supabase/migrations/046_precisionfix.sql` — applied: **yes** (2026-09-15), 5 media rows.
+  migration `command/supabase/migrations/046_precisionfix.sql`, applied: **yes** (2026-09-15), 5 media rows.
 - **Storage:** public bucket `precisionfix`.
 - **Netlify:** project `precisionfix-austin`, id above, cryptokoh. Env:
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, EMAIL_FROM,
-  PRECISIONFIX_SESSION_SECRET, PRECISIONFIX_SITE_NAME, PRECISIONFIX_FORM_NOTIFY.
+  PRECISIONFIX_SESSION_SECRET, PRECISIONFIX_SITE_NAME, PRECISIONFIX_FORM_NOTIFY,
+  PRECISIONFIX_OWNER_EMAILS (cryptokoh + alexb04.uti, set 2026-09-15).
 - **GitHub:** HandProtocol/precisionfix-site (private), **git-linked to the
-  Netlify site since 2026-09-15** (installation 108354379, branch `main`,
-  publish `public`, no build command): every push to `main` deploys; the
-  first git build succeeded and the booking form stayed registered.
+  Netlify site** (installation 108354379, branch `main`, publish `public`, no
+  build command): every push to `main` deploys. The link was silently broken
+  from 22:55 UTC on 2026-09-15 to 03:05 UTC the next morning: the original
+  `PATCH /sites/<id> { repo: {...} }` omitted the GitHub repo's numeric `id`,
+  so every build after the first (three pushes, one API trigger) died in
+  seconds with "Unsupported repository type." while the site kept serving
+  the old deploy. Re-sending the same repo object with `id: 1372230595`
+  (`gh api /repos/HandProtocol/precisionfix-site --jq .id`) fixed it: the
+  next API-triggered build of `ed0bf52` went `ready`. Check
+  `GET /sites/<id>/deploys` after a push rather than trusting the link.
 - **Custom domain:** owner has a Namecheap domain (name unknown). Plan:
   Netlify DNS zone first, relay the four nameservers to the owner (checklist
   item), then `custom_domain` + `www` alias, update `productionUrl`, redeploy.
@@ -129,8 +150,11 @@ in the dashboard; the Resend email is his copy.
 
 ## Known gaps and risks
 
-- `contact.email` is empty and `PRECISIONFIX_FORM_NOTIFY` = hand@handprotocol.org
-  until the owner gives an address. Booking emails come from HAND's Resend
+- `contact.email` (shown on the page) is still empty and
+  `PRECISIONFIX_FORM_NOTIFY` still = hand@handprotocol.org. The owner's address
+  is known now (alexb04.uti@gmail.com) but booking notifications have not been
+  switched to him; flip the env var (comma list, the HAND inbox can stay on it)
+  when koH says so. Booking emails come from HAND's Resend
   sender (`EMAIL_FROM` copied from ZeroBlur); a sender on his own domain is a
   later nicety (DNS records on Netlify DNS).
 - Netlify Forms free tier: 100 submissions/month, then $19/mo. Fine for a
@@ -149,21 +173,24 @@ in the dashboard; the Resend email is his copy.
 - `clients/precisionfix/.netlify/` is the CLI's state dir (gitignored); the
   standalone repo excludes it.
 
-## Message to send the owner (once his email is added)
+## Message to send the owner (ready: his email is an owner row)
 
 > Your new site is live at https://precisionfix-austin.netlify.app (it moves
 > to your own domain next). Open https://precisionfix-austin.netlify.app/admin/
-> on your phone, type your email, tap the link we send you: that is the
-> editor. Start with the **Setup** tab, it lists everything left in order,
+> on your phone, type your email (alexb04.uti@gmail.com), tap the link we
+> send you: that is the editor. Start with the **Setup** tab, it lists everything left in order,
 > written for your phone. Try the five looks with the Theme dropdown under
 > Site. Every line is yours to change, in English and Spanish. Send me your
-> Namecheap domain name and your GitHub username when you have them.
+> Namecheap domain name and your GitHub username when you have them, and the
+> email you used for Supabase once that step is done.
 
 ## Next steps
 
-1. Ask the owner for: his email (→ Editors + `PRECISIONFIX_FORM_NOTIFY`),
-   the domain name (→ `DOMAIN` in `site/checklist.mjs`, DNS zone), his
-   GitHub username (→ collaborator on the repo), and which theme he likes.
+1. Owner email is done (alexb04.uti@gmail.com: owner row + env). Still ask
+   Alex for: the domain name (→ `DOMAIN` in `site/checklist.mjs`, DNS zone),
+   his GitHub username (→ collaborator on the repo), which theme he likes,
+   and the email he used for Supabase. Switch `PRECISIONFIX_FORM_NOTIFY` to
+   him when koH says so.
 2. Sign in at `/admin/` as hand@handprotocol.org, publish once (creates the
    content row; `source` flips to `db`), send a test booking, confirm both
    emails arrive (Resend log), tick the first checklist items.
