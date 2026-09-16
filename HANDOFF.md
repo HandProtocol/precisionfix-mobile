@@ -108,17 +108,23 @@ in yet (`last_login_at` is null on every row).
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, EMAIL_FROM,
   PRECISIONFIX_SESSION_SECRET, PRECISIONFIX_SITE_NAME, PRECISIONFIX_FORM_NOTIFY,
   PRECISIONFIX_OWNER_EMAILS (cryptokoh + alexb04.uti, set 2026-09-15).
-- **GitHub:** HandProtocol/precisionfix-site (private), **git-linked to the
-  Netlify site** (installation 108354379, branch `main`, publish `public`, no
-  build command): every push to `main` deploys. The link was silently broken
-  from 22:55 UTC on 2026-09-15 to 03:05 UTC the next morning: the original
-  `PATCH /sites/<id> { repo: {...} }` omitted the GitHub repo's numeric `id`,
-  so every build after the first (three pushes, one API trigger) died in
-  seconds with "Unsupported repository type." while the site kept serving
-  the old deploy. Re-sending the same repo object with `id: 1372230595`
-  (`gh api /repos/HandProtocol/precisionfix-site --jq .id`) fixed it: the
-  next API-triggered build of `ed0bf52` went `ready`. Check
-  `GET /sites/<id>/deploys` after a push rather than trusting the link.
+- **GitHub:** HandProtocol/precisionfix-site (private, org-owned), linked to
+  the Netlify site (installation 108354379, branch `main`, publish `public`,
+  no build command). **Pushes do not deploy.** The cryptokoh Netlify account
+  is on the Free plan, whose `deploy_private_corp_repos` capability is off:
+  Free cannot git-deploy private repos owned by a GitHub organization, so
+  every push webhook creates a deploy that dies in under a second with
+  "Unsupported repository type." (four pushes on 2026-09-15/16) while the
+  site keeps serving the last good deploy. The link-time build and one
+  `POST /sites/<id>/builds` after re-sending the repo object with its GitHub
+  `id` (1372230595) did go `ready`, so manual API builds may work, but do not
+  rely on it. Until koH picks a fix (make the repo public; move it to
+  cryptokoh's personal account, where private repos deploy on Free; or a paid
+  plan), deploy by CLI from the monorepo copy:
+  `cd clients/precisionfix && NETLIFY_AUTH_TOKEN=<cryptokoh token> netlify deploy --prod --build --skip-functions-cache --site 9f248232-981f-4a15-a891-a62f949f92fa`
+  then check `GET /sites/<id>/deploys`. The Setup checklist's Claude Code
+  item still promises "the site updates itself about a minute later"; that is
+  only true once the link deploys.
 - **Custom domain:** owner has a Namecheap domain (name unknown). Plan:
   Netlify DNS zone first, relay the four nameservers to the owner (checklist
   item), then `custom_domain` + `www` alias, update `productionUrl`, redeploy.
