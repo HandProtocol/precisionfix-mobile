@@ -10,7 +10,7 @@
 //       tab      target: content | media | editors | history | setup
 //       section  target: '<section key>'        (Content tab, scroll + highlight)
 //       field    target: '<section>.<field>'    (…and focus the input)
-//       site     target: '#hash' or '/path'     (opens the live site in a new tab)
+//       site     target: '#hash' or '/path'     (opens the live site in a new tab; '#hash' means '/#hash', never the admin page)
 //       url      target: 'https://…'            (external, new tab)
 //       looks    (no target)                    (jumps to the Looks picker)
 //     check: { kind, path?, value? },         // ticks itself when true:
@@ -35,7 +35,10 @@ const CHECK_KINDS = new Set(['field', 'value', 'media', 'host']);
 
 function normalizeAction(a) {
   if (!a || !ACTION_KINDS.has(a.kind) || !a.label) return null;
-  const target = a.kind === 'looks' ? '' : String(a.target || '');
+  let target = a.kind === 'looks' ? '' : String(a.target || '');
+  // A site target is always root-relative: '#book' from /admin/ would resolve
+  // to /admin/#book (the editor again), so it becomes '/#book'.
+  if (a.kind === 'site' && target.startsWith('#')) target = '/' + target;
   const ok =
     a.kind === 'tab' ? TABS.has(target)
     : a.kind === 'section' ? ID_RE.test(target)
@@ -122,8 +125,10 @@ function steps(list, label) {
 
 function actionsHtml(list) {
   if (!list.length) return '';
+  // url + site are real links (new tab, no JS needed); the rest are buttons
+  // admin.js routes inside the editor.
   const btn = (a, i) =>
-    a.kind === 'url'
+    a.kind === 'url' || a.kind === 'site'
       ? `<a class="btn ${i ? 'btn--ghost' : 'btn--primary'} btn--sm" href="${e(a.target)}" target="_blank" rel="noopener">${e(a.label)} ↗</a>`
       : `<button type="button" class="btn ${i ? 'btn--ghost' : 'btn--primary'} btn--sm" data-action-kind="${e(a.kind)}" data-action-target="${e(a.target)}">${e(a.label)}</button>`;
   return `<div class="task__actions">${list.map(btn).join('')}</div>`;

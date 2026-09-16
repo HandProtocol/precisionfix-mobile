@@ -214,7 +214,7 @@
       if (fld) { var inp = $('input,textarea,select', fld); if (inp) setTimeout(function () { inp.focus({ preventScroll: true }); }, 450); }
       return;
     }
-    if (kind === 'site') { window.open(target, '_blank', 'noopener'); return; }
+    if (kind === 'site') { window.open(new URL(target, location.origin + '/').href, '_blank', 'noopener'); return; } // root-relative: never /admin/#hash
     if (kind === 'looks') {
       var grid = $('#panel-setup .looks') || $('#contentform .looks');
       if (!grid) return;

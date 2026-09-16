@@ -93,6 +93,8 @@ test('actions are validated per kind, checks per kind, embeds whitelisted', () =
   assert.deepEqual(byId.theme.actions, [{ label: 'Open looks', kind: 'looks', target: '' }]);
   assert.equal(byId.theme.embed, 'looks');
   assert.deepEqual(byId.copy.actions.map((a) => a.kind), ['field', 'section', 'tab', 'site', 'url']);
+  // a '#hash' site target is made root-relative so it opens the live site, not /admin/#hash
+  assert.equal(byId.copy.actions[3].target, '/#book');
   assert.deepEqual(byId.copy.check, { kind: 'field', path: 'contact.phone', value: '' });
   assert.deepEqual(byId.photos.check, { kind: 'media', path: '', value: '' });
   assert.deepEqual(byId.domain.check, { kind: 'host', path: '', value: '' });
@@ -106,6 +108,9 @@ test('task html carries action buttons, check attributes, and the embedded looks
   const html = checklistHtml(RICH, THEMES);
   assert.match(html, /<button type="button" class="btn btn--primary btn--sm" data-action-kind="field" data-action-target="contact\.phone">Open Contact<\/button>/);
   assert.match(html, /<a class="btn btn--ghost btn--sm" href="https:\/\/namecheap\.com\/x" target="_blank" rel="noopener">Namecheap ↗<\/a>/);
+  // site actions are links to the live site (new tab), not buttons
+  assert.match(html, /<a class="btn btn--ghost btn--sm" href="\/#book" target="_blank" rel="noopener">Try booking ↗<\/a>/);
+  assert.equal(html.includes('data-action-kind="site"'), false);
   assert.equal(html.includes('javascript:'), false);
   assert.match(html, /data-task="copy"[^>]*data-check-kind="field" data-check-path="contact\.phone"/);
   assert.match(html, /data-task="lang"[^>]*data-check-kind="value" data-check-path="site\.lang" data-check-value="es"/);

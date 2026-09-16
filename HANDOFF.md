@@ -20,6 +20,28 @@ item 12, "Create your Supabase account" (standalone repo commit `ed0bf52`).
 Deployed by CLI; see the GitHub bullet under "Where things are" for the state
 of the git link.
 
+**2026-09-16 checkpoint: Setup tab rework (engine).** Every Setup step is
+now a button (`actions`: jump to a field, section, tab, the live site, or an
+external link), items tick themselves where the site can tell (`check`:
+owner email in, Search Console code pasted, custom domain live), ticks save
+on the spot (`PATCH /api/admin/content`, no Publish), done tasks collapse,
+and the first item embeds the **Looks picker**: five swatch cards, a
+full-screen preview of the real site in that look inside the editor, and
+**Use this look** publishes in one tap. The old "type ?theme= in the
+address bar" instruction is gone. Deployed by CLI, verified live signed in
+(see "Verified live 2026-09-16"), standalone repo commit `190e156`. The
+content row now exists (`source: db`, theme `redline`, every tick false),
+because the verification switched looks and back.
+
+**2026-09-16 evening: test-booking button fixed.** The Setup task "Send
+yourself a test booking" opened `/admin/#book` (a second editor tab) because
+`site` actions were `window.open`-ed relative to the admin page. Engine fix
+(see `clients/_template/HANDOFF.md`): `site` targets are root-relative and
+rendered as links. Redeployed by CLI, `assetVersion` `20260916b`, verified
+signed in: the button now opens `https://precisionfix-austin.netlify.app/#book`
+in a new tab. The verification minted and consumed one login token for
+hand@handprotocol.org; content untouched (theme `redline`, ticks false).
+
 ## Start here (cold session)
 
 1. Read this file, then `README.md` (owner section on top, engine doc below).
@@ -60,15 +82,17 @@ of the git link.
   turned on via API + redeployed. Payments: not built; the form is shaped so a
   deposit step (Stripe) slots in later (checklist item "Take deposits").
 - **Setup tab in `/admin/`** (engine feature, `config.checklist` →
-  `site/checklist.mjs`): 12 phone-first tasks with why / steps / links /
-  "rather have HAND do it" / done-when; ticks are saved in the content doc
-  (hidden `setup` section) with Publish. Items: theme, copy + phone check,
-  photos, test booking, GitHub account, connect Claude Code, Supabase account
-  (added 2026-09-15 at koH's ask, so his data can later move to a project he
-  owns), Namecheap nameservers, Search Console (verification code is an editor field →
-  meta tag; sitemap at `/sitemap.xml`), Google Business Profile, retire the
-  old site, deposits (later). `DOMAIN` in `site/checklist.mjs` is a
-  placeholder until the owner tells us the domain.
+  `site/checklist.mjs`): 12 phone-first tasks. Each has action buttons (the
+  button is the step), a why, fallback prose, "rather have HAND do it", and
+  a done-when; the theme task embeds the Looks picker; `copy`,
+  `search_console` and `domain` tick themselves (`check` on
+  `contact.email`, `seo.google_verification`, the served host). Ticks live in
+  the content doc (hidden `setup` section) and save the moment they change.
+  Items: theme, copy + phone + email, photos, test booking, GitHub account,
+  connect Claude Code, Supabase account, Namecheap nameservers, Search
+  Console, Google Business Profile, retire the old site, deposits (later).
+  `DOMAIN` in `site/checklist.mjs` is a placeholder until the owner tells us
+  the domain.
 - **Photos**: the five cars from the old site, seeded (Porsche featured).
 
 ## Engine additions made for this site (in `clients/_template`, synced)
@@ -138,6 +162,24 @@ repo (collaborator, for Claude Code on his phone), and the emails. He does
 not need Netlify access. Netlify Forms submissions are visible only to HAND
 in the dashboard; the Resend email is his copy.
 
+## Verified live (2026-09-16, Setup tab rework)
+
+Signed in as hand@handprotocol.org with a minted token, Playwright at 390 and
+1440 wide, zero console errors, no horizontal overflow:
+
+- First sign-in lands on the Setup tab; the tab sits first in the bar while
+  work is left; progress reads "n of 12 done · next: …".
+- Preview opens `/?theme=<id>` inside the editor and the frame renders that
+  `data-theme`; Use this look publishes it (`/` served the new theme within a
+  second, save bar stayed hidden, the theme task ticked); ‹ › step through
+  looks; the live look's Use button is hidden and the overlay says "This is
+  your live look".
+- A manual tick survived a reload without Publish; unticking works; done
+  tasks collapse to one line and expand on tap.
+- "Check the phone number" switched to Content and focused `contact.phone`;
+  the Content tab's Site section shows the same five-card picker.
+- Left the site on Redline with every tick false, as Alex should first see it.
+
 ## Verified live (2026-09-15)
 
 - `/` 200, `data-theme="redline"`, no Netlify badge, owner link, theme block;
@@ -184,9 +226,10 @@ in the dashboard; the Resend email is his copy.
 > Your new site is live at https://precisionfix-austin.netlify.app (it moves
 > to your own domain next). Open https://precisionfix-austin.netlify.app/admin/
 > on your phone, type your email (alexb04.uti@gmail.com), tap the link we
-> send you: that is the editor. Start with the **Setup** tab, it lists everything left in order,
-> written for your phone. Try the five looks with the Theme dropdown under
-> Site. Every line is yours to change, in English and Spanish. Send me your
+> send you: that is the editor. Start with the **Setup** tab: tap a look to see your site wearing
+> it and **Use this look** to make it live; every other step is a button
+> that takes you to the right place. Every line is yours to change, in
+> English and Spanish. Send me your
 > Namecheap domain name and your GitHub username when you have them, and the
 > email you used for Supabase once that step is done.
 
