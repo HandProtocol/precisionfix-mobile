@@ -86,6 +86,20 @@ export const CHECKLIST = [
     done: 'You have merged one change and seen it live on the site.',
   },
   {
+    id: 'supabase',
+    title: 'Create your Supabase account',
+    why: 'Everything you edit here (your text, your photos, your publish history) lives in a database. Today HAND hosts it inside a shared project. With your own free Supabase account, HAND can move your data into a project that belongs to you, so the whole site is yours to keep.',
+    phone: [
+      'Go to **supabase.com** in your phone browser and tap **Start your project** (the free plan is all you need).',
+      'Sign up with the GitHub account from the step above (fastest), or with the same email you use for this editor.',
+      'When it asks for an organization, name it **PrecisionFix** and keep the free plan.',
+      'Send HAND the email you signed up with. Nothing to build on your side; HAND sets the project up and adds you as its owner.',
+    ],
+    links: [{ label: 'Sign up at Supabase', href: 'https://supabase.com/dashboard/sign-up' }],
+    ask: 'HAND can walk you through it on a call, or create it with you and hand over the keys.',
+    done: 'You can sign in at supabase.com/dashboard and see the PrecisionFix organization.',
+  },
+  {
     id: 'domain',
     title: 'Point ' + DOMAIN + ' at the new site',
     why: 'You already own the domain on Namecheap. Right now it points nowhere. Two settings on Namecheap send it to this site with HTTPS handled automatically.',
