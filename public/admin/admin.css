@@ -165,6 +165,49 @@ select{appearance:none;padding-right:2rem;background-image:linear-gradient(45deg
 .toast.ok{border-left-color:var(--ok)}.toast.bad{border-left-color:var(--bad)}
 @keyframes pop2{from{transform:translateY(-8px);opacity:0}}
 
+
+/* setup: actions, self-ticking tasks, collapsed done tasks, jump highlight */
+.task__actions{display:flex;gap:.5rem;flex-wrap:wrap}
+.task__auto{display:none;font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ok)}
+.task.is-auto .task__auto{display:inline}
+.task.is-auto .task__check{cursor:default}
+.task.is-auto .task__check i{background:var(--ok);border-color:var(--ok)}
+.task.is-auto .task__check input{cursor:default}
+.task.is-done:not(.is-open) .task__body>*:not(.task__head){display:none}
+.task.is-done .task__head{cursor:pointer}
+.task.is-done .task__head::after{content:'+';margin-left:auto;color:var(--ink-3);font-weight:700}
+.task.is-done.is-open .task__head::after{content:'–'}
+.is-flash{animation:flash 1.5s var(--ease)}
+@keyframes flash{0%{box-shadow:0 0 0 0 rgb(var(--accent-rgb) / 0)}20%{box-shadow:0 0 0 4px rgb(var(--accent-rgb) / .6)}100%{box-shadow:0 0 0 0 rgb(var(--accent-rgb) / 0)}}
+.field.is-flash{border-radius:var(--r)}
+
+/* looks picker */
+.looks{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem}
+.look{background:var(--bg-3);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;display:grid;grid-template-rows:auto 1fr;transition:border-color .2s,box-shadow .2s,transform .3s var(--ease)}
+.look:hover{transform:translateY(-2px)}
+.look.is-live{border-color:var(--accent-2);box-shadow:0 0 0 3px rgb(var(--accent-rgb) / .2)}
+.look__swatch{position:relative;display:block;width:100%;aspect-ratio:16/10;border:0;cursor:pointer;background:var(--look-bg);color:var(--look-ink);text-align:left;padding:.85rem .9rem;overflow:hidden;font:inherit}
+.look__word{font-family:var(--look-font);font-size:1.3rem;font-weight:700;line-height:1;display:block;max-width:78%;word-break:break-word}
+.look__swatch b{position:absolute;right:.8rem;top:.6rem;font-family:var(--look-font);font-size:1.5rem;font-weight:700;color:var(--look-accent)}
+.look__swatch::after{content:'';position:absolute;left:.9rem;width:38%;bottom:1.25rem;height:.42rem;border-radius:999px;background:var(--look-accent)}
+.look__swatch i{position:absolute;left:0;right:0;bottom:0;height:7px;background:var(--look-accent)}
+.look__body{display:grid;gap:.45rem;padding:.75rem .85rem .85rem;align-content:start}
+.look__body h4{font-size:.95rem;display:flex;align-items:center;gap:.5rem;font-family:var(--font-body);font-weight:700;letter-spacing:0;text-transform:none}
+.look__body p{font-size:.8rem;color:var(--ink-3);line-height:1.4}
+.look__live{display:none;font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.15rem .45rem;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent)}
+.look.is-live .look__live{display:inline-block}
+.look.is-live [data-look-use]{display:none}
+.look__tools{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.2rem}
+
+/* look preview overlay */
+.preview{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;background:var(--bg)}
+.preview[hidden]{display:none}
+.preview iframe{flex:1;width:100%;border:0;background:#fff}
+.preview__bar{display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem calc(.6rem + env(safe-area-inset-bottom,0px));background:rgb(var(--bg-3-rgb) / .96);border-top:1px solid var(--line-2);backdrop-filter:blur(16px)}
+.preview__name{font-weight:700;font-family:var(--font-display);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview__bar .spacer{flex:1}
+body.has-preview{overflow:hidden}
+
 @media (max-width:900px){
   .panel{grid-template-columns:1fr}.side{display:none}
   .top{flex-wrap:wrap;gap:.6rem}.tabs{order:3;width:100%;margin-left:0;overflow-x:auto}.who{display:none}
@@ -172,4 +215,7 @@ select{appearance:none;padding-right:2rem;background-image:linear-gradient(45deg
   .item{grid-template-columns:1fr}.item__tools{grid-auto-flow:column;justify-content:start}
   .savebar{border-radius:var(--r-lg);flex-wrap:wrap}
   .task{padding:.9rem;gap:.7rem}
+  .looks{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .preview__bar{flex-wrap:wrap}
+  .preview__bar .btn{flex:1 1 auto}
 }

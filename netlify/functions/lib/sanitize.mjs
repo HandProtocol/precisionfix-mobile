@@ -91,3 +91,24 @@ function checkField(f, where) {
     throw new Error(`schema: ${where}.${f.key} has unknown type ${f.type}`);
   }
 }
+
+// Applies { '<section>.<field>': value } onto a complete document, checking
+// every path against the sections (lists cannot be set this way). Returns a
+// new document; the input is not mutated. Throws a 400 on an unknown path so
+// PATCH /api/admin/content never writes outside the schema.
+export function applyPaths(sections, base, set) {
+  const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
+  if (!set || typeof set !== 'object' || Array.isArray(set)) throw bad('set must be an object of "<section>.<field>": value');
+  const entries = Object.entries(set);
+  if (!entries.length || entries.length > 50) throw bad('set needs 1 to 50 paths');
+  const out = {};
+  for (const s of sections) out[s.key] = { ...((base && base[s.key]) || {}) };
+  for (const [path, value] of entries) {
+    const parts = String(path).split('.');
+    const section = parts.length === 2 && sections.find((s) => s.key === parts[0]);
+    const field = section && section.fields.find((f) => f.key === parts[1]);
+    if (!field || field.type === 'list') throw bad(`Unknown field ${path}`);
+    out[parts[0]][parts[1]] = value;
+  }
+  return out;
+}

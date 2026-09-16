@@ -7,6 +7,33 @@ function must(cond, msg) {
   if (!cond) throw new Error(`site.config.mjs: ${msg}`);
 }
 
+const LOOK_ID = /^[a-z][a-z0-9_-]*$/;
+const FIELD_PATH = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
+
+// The Looks picker shown in /admin/ (lib/checklist.mjs looksHtml()): which
+// content field stores the pick, and one card per look. null = no picker.
+//   themes: { field: 'site.theme', options: [{ id, label, blurb,
+//             swatch: { bg, accent, ink }, fontDisplay }] }
+export function normalizeThemes(t, palette = {}) {
+  if (!t || typeof t !== 'object') return null;
+  must(FIELD_PATH.test(String(t.field || '')), 'themes.field must be "<section>.<field>"');
+  const options = (Array.isArray(t.options) ? t.options : [])
+    .filter((o) => o && LOOK_ID.test(String(o.id || '')) && o.label)
+    .map((o) => ({
+      id: String(o.id),
+      label: String(o.label),
+      blurb: String(o.blurb || ''),
+      swatch: {
+        bg: String((o.swatch && o.swatch.bg) || palette.bg || '#111111'),
+        accent: String((o.swatch && o.swatch.accent) || palette.accent || '#ffffff'),
+        ink: String((o.swatch && o.swatch.ink) || palette.ink || '#ffffff'),
+      },
+      fontDisplay: String(o.fontDisplay || ''),
+    }));
+  must(options.length > 0, 'themes.options needs at least one look with an id and a label');
+  return { field: String(t.field), options };
+}
+
 export function normalizeConfig(c) {
   must(c && typeof c === 'object', 'must export an object');
   must(/^[a-z0-9][a-z0-9-]{1,48}$/.test(c.slug || ''), 'slug must be lowercase [a-z0-9-], 2-49 chars');
@@ -35,6 +62,8 @@ export function normalizeConfig(c) {
     checklist: Array.isArray(c.checklist) ? c.checklist : [],
     // Netlify Forms → Resend notifications (see lib/forms.mjs). null = no forms.
     forms: c.forms && typeof c.forms === 'object' ? c.forms : null,
+    // Looks picker in /admin/ (see normalizeThemes above). null = no picker.
+    themes: normalizeThemes(c.themes, c.theme),
     tables: {
       editors: `${dbPrefix}_editors`,
       login_tokens: `${dbPrefix}_login_tokens`,

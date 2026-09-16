@@ -1,6 +1,8 @@
 // Editing API (session cookie required; see auth.mjs).
 //
 //   PUT    /api/admin/content                  { content } → publish copy
+//   PATCH  /api/admin/content                  { set: { '<section>.<field>': value } } → publish just those fields
+//                                              (setup ticks, the Looks pick) without touching unpublished drafts
 //   GET    /api/admin/revisions                → last 30 content snapshots
 //   POST   /api/admin/revisions/:id/restore    → publish an old snapshot
 //   POST   /api/admin/media/upload-url         { name, type, size } → signed upload
@@ -18,7 +20,8 @@
 
 import crypto from 'node:crypto';
 import { createSignedUpload, deleteObjects, objectExists, purgeSiteCache, sb } from './lib/db.mjs';
-import { CONTENT_KEY, sanitize } from './lib/site.mjs';
+import { CONTENT_KEY, SECTIONS, sanitize } from './lib/site.mjs';
+import { applyPaths } from './lib/sanitize.mjs';
 import { loadSite, toView } from './lib/content.mjs';
 import { handleError, json, readJson, requireEditor, sameOrigin } from './lib/http.mjs';
 
@@ -48,6 +51,14 @@ async function publishContent(editor, content, kind = 'content') {
     body: { editor_id: editor.id, kind, snapshot: clean },
   }).catch((err) => console.warn('revision insert failed:', err.message));
   return clean;
+}
+
+// Reads the stored document (defaults when nothing is published yet), sets
+// the given paths, and publishes the result like a full PUT would.
+async function patchContent(editor, set) {
+  const stored = await sb(`/{content}?key=eq.${CONTENT_KEY}&select=value`);
+  const base = sanitize(stored && stored[0] ? stored[0].value : undefined);
+  return publishContent(editor, applyPaths(SECTIONS, base, set));
 }
 
 async function withPurge(result) {
@@ -225,6 +236,11 @@ export default async (req) => {
     if (head === 'content' && m === 'PUT') {
       const body = await readJson(req);
       const content = await publishContent(editor, body.content);
+      return json(200, await withPurge({ ok: true, content }));
+    }
+    if (head === 'content' && m === 'PATCH') {
+      const body = await readJson(req, 64 * 1024);
+      const content = await patchContent(editor, body.set);
       return json(200, await withPurge({ ok: true, content }));
     }
     if (head === 'revisions' && !second && m === 'GET') {

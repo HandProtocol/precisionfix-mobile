@@ -19,9 +19,9 @@ export const SECTIONS = [
   {
     key: 'site',
     label: 'Site',
-    help: 'The look of the whole site and the language switch. Preview any theme first by adding ?theme=<name> to the site address.',
+    help: 'The look of the whole site and the language switch.',
     fields: [
-      { key: 'theme', type: 'select', label: 'Theme', options: themeOptions(), help: 'Switches the entire site: colors, fonts, layout, motion. Live the moment you publish.' },
+      { key: 'theme', type: 'select', ui: 'looks', label: 'Theme', options: themeOptions(), help: 'Tap Preview to see your real site in that look. Use this look makes it live right away.' },
       { key: 'lang_toggle', type: 'toggle', label: 'Show the EN / ES language switch' },
     ],
   },

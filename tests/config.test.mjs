@@ -32,3 +32,20 @@ test('the shipped config is valid and seeds media in row shape', () => {
   assert.match(rows[0].id, /^[0-9a-f-]{36}$/);
   assert.match(rows[0].mime, /^image\//);
 });
+
+// --- themes (the Looks picker) ---------------------------------------------
+import { normalizeThemes } from '../netlify/functions/lib/config.mjs';
+
+test('normalizeThemes: null when absent, validated field + options, swatch falls back to the palette', () => {
+  assert.equal(normalizeThemes(undefined), null);
+  const t = normalizeThemes(
+    { field: 'site.theme', options: [{ id: 'redline', label: 'Redline', swatch: { bg: '#000' } }, { id: 'Bad Id', label: 'x' }, { id: 'nolabel' }] },
+    { bg: '#111111', accent: '#ff0000', ink: '#ffffff' }
+  );
+  assert.deepEqual(t, {
+    field: 'site.theme',
+    options: [{ id: 'redline', label: 'Redline', blurb: '', swatch: { bg: '#000', accent: '#ff0000', ink: '#ffffff' }, fontDisplay: '' }],
+  });
+  assert.throws(() => normalizeThemes({ field: 'theme', options: [{ id: 'a', label: 'A' }] }), /themes\.field/);
+  assert.throws(() => normalizeThemes({ field: 'site.theme', options: [] }), /themes\.options/);
+});

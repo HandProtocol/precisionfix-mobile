@@ -49,3 +49,20 @@ test('select fields clamp to their options and fall back to base, then the first
   assert.equal(sanitizeContent(S, {}, {}).site.theme, 'a');
   assert.throws(() => assertSections([{ key: 'x', fields: [{ key: 'y', type: 'select', label: 'Y' }] }]), /options/);
 });
+
+// --- applyPaths (PATCH /api/admin/content) ---------------------------------
+import { applyPaths } from '../netlify/functions/lib/sanitize.mjs';
+
+test('applyPaths sets only known section.field paths and never mutates the base', () => {
+  const sections = [
+    { key: 'site', fields: [{ key: 'theme', type: 'select', options: ['a', 'b'] }, { key: 'items', type: 'list', max: 2, item: [{ key: 'x', type: 'text', max: 5 }] }] },
+    { key: 'setup', hidden: true, fields: [{ key: 'domain', type: 'toggle' }] },
+  ];
+  const base = { site: { theme: 'a', items: [] }, setup: { domain: false } };
+  const out = applyPaths(sections, base, { 'site.theme': 'b', 'setup.domain': true });
+  assert.deepEqual(out, { site: { theme: 'b', items: [] }, setup: { domain: true } });
+  assert.deepEqual(base, { site: { theme: 'a', items: [] }, setup: { domain: false } });
+  for (const bad of [{ 'nope.theme': 'b' }, { 'site.nope': 'b' }, { 'site.items': [] }, { 'site.theme.deep': 'b' }, {}, [], null]) {
+    assert.throws(() => applyPaths(sections, base, bad), (err) => err.status === 400, JSON.stringify(bad));
+  }
+});

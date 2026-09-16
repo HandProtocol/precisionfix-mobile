@@ -6,7 +6,7 @@
 import { config } from './config.mjs';
 import { escapeHtml as e } from './html.mjs';
 import { adminThemeVars } from './theme.mjs';
-import { checklistHtml, checklistItems } from './checklist.mjs';
+import { checklistHtml, checklistItems, looksHtml } from './checklist.mjs';
 
 function fontLinks() {
   if (!config.fonts.googleCss) return '';
@@ -125,7 +125,7 @@ ${fontLinks()}
           <header class="panel__head">
             <div>
               <h2>Getting your site fully live</h2>
-              <p class="muted">Everything left to do, in order, written for a phone. Tick each one as you finish it and tap <strong>Publish</strong> to save your progress. Anything you would rather not do yourself, HAND can do for you.</p>
+              <p class="muted">Everything left to do, in order, written for a phone. Every step has a button that takes you to the right place. Steps tick themselves when the site can tell they are done; tick the rest as you go, they save on the spot. Anything you would rather not do yourself, HAND can do for you.</p>
             </div>
           </header>
           <div class="setup__progress" id="setupprogress" role="status" aria-live="polite"><i></i><span></span></div>
@@ -149,6 +149,22 @@ ${checklistHtml()}
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 </div>
+${
+  config.themes
+    ? `<template id="looks-tpl">${looksHtml()}</template>
+<div class="preview" id="preview" hidden role="dialog" aria-label="Preview a look">
+  <iframe id="previewframe" title="Site preview" src="about:blank"></iframe>
+  <div class="preview__bar">
+    <button class="icon" id="previewprev" type="button" title="Previous look" aria-label="Previous look">‹</button>
+    <span class="preview__name" id="previewname"></span>
+    <button class="icon" id="previewnext" type="button" title="Next look" aria-label="Next look">›</button>
+    <span class="spacer"></span>
+    <button class="btn btn--primary btn--sm" id="previewuse" type="button">Use this look</button>
+    <button class="btn btn--ghost btn--sm" id="previewclose" type="button">Close</button>
+  </div>
+</div>`
+    : ''
+}
 <script src="/admin/admin.js?v=${v}" defer></script>
 </body>
 </html>`;

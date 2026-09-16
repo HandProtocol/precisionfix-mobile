@@ -1,8 +1,8 @@
-// PrecisionFix — site pack config. Mobile mechanic, Austin TX, Mercedes-Benz
+// PrecisionFix site pack config. Mobile mechanic, Austin TX, Mercedes-Benz
 // factory certified, bilingual. Five switchable themes (site/themes.mjs);
 // the editor, emails, and meta theme-color use the default one.
 import { CHECKLIST } from './site/checklist.mjs';
-import { DEFAULT_THEME, THEMES } from './site/themes.mjs';
+import { DEFAULT_THEME, THEMES, themePickerOptions } from './site/themes.mjs';
 
 const base = THEMES[DEFAULT_THEME];
 
@@ -17,11 +17,15 @@ export default {
   supabase: { projectRef: 'vconmgerblqbworcqkvr', schema: 'command' },
 
   // Bump whenever public/assets/** change (site + admin assets both carry it).
-  assetVersion: '20260915a',
+  assetVersion: '20260916a',
 
   fonts: base.fonts,
 
   theme: { ...base.palette, admin: base.admin },
+
+  // The Looks picker in /admin/: one card per theme, live preview, one-tap
+  // publish. `field` is where the pick is stored (site/schema.mjs).
+  themes: { field: 'site.theme', options: themePickerOptions() },
 
   // Hex bolt head with a wrench. Inline SVG on currentColor.
   logo:

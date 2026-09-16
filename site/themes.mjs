@@ -1,5 +1,5 @@
 // The five looks PrecisionFix can wear. The owner picks one in /admin/ under
-// Site → Theme (or previews any with ?theme=<id>); site.config.mjs uses the
+// Site → Theme, or from the Setup tab's Looks picker; site.config.mjs uses the
 // default's palette for the editor, emails, and meta theme-color.
 //
 // Every palette key becomes a CSS variable (--bg, --accent-2 …; hex keys
@@ -245,7 +245,22 @@ export const THEMES = {
 export const THEME_IDS = Object.keys(THEMES);
 
 export function themeOptions() {
-  return THEME_IDS.map((id) => ({ value: id, label: `${THEMES[id].label} — ${THEMES[id].blurb.split('.')[0]}` }));
+  return THEME_IDS.map((id) => ({ value: id, label: `${THEMES[id].label}: ${THEMES[id].blurb.split('.')[0]}` }));
+}
+
+// Cards for the Looks picker in /admin/ (config.themes): swatch + display
+// font per look, blurb trimmed to its first sentence.
+export function themePickerOptions() {
+  return THEME_IDS.map((id) => {
+    const t = THEMES[id];
+    return {
+      id,
+      label: t.label,
+      blurb: t.blurb.split('. ').slice(0, 2).join('. ').replace(/\.?$/, '.'),
+      swatch: { bg: t.palette.bg, accent: t.palette.accent, ink: t.palette.ink },
+      fontDisplay: t.fonts.display,
+    };
+  });
 }
 
 // Resolve the theme for a render: ?theme=<id> (preview) → the owner's pick →

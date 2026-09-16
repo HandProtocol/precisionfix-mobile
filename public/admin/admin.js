@@ -7,7 +7,7 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || d).querySelectorAll(s)); };
   var DRAFT_KEY = 'site-draft-v1';
 
-  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false };
+  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0 };
 
   // ---------------------------------------------------------------- utils --
   function h(tag, attrs, children) {
@@ -60,12 +60,20 @@
     $('#login').hidden = true; $('#shell').hidden = false;
     $('#who').textContent = state.editor.email;
     $('#tab-editors').hidden = state.editor.role !== 'owner';
+    // First visit with setup left to do: open the Setup tab, once per session.
+    try {
+      if (state.setupOpen && !sessionStorage.getItem(DRAFT_KEY + '-setup-seen')) {
+        sessionStorage.setItem(DRAFT_KEY + '-setup-seen', '1');
+        setTab('setup');
+      }
+    } catch (_) {}
   }
   function setTab(name) {
     $$('.tab').forEach(function (t) { t.classList.toggle('is-active', t.dataset.tab === name); });
     ['content', 'media', 'editors', 'history', 'setup'].forEach(function (p) { var el = $('#panel-' + p); if (el) el.hidden = p !== name; });
     if (name === 'editors') loadEditors();
     if (name === 'history') loadHistory();
+    if (name === 'setup') { var nxt = $('#setuplist .task:not(.is-done):not([data-later])'); if (nxt) setTimeout(function () { nxt.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
   }
   $$('.tab').forEach(function (t) { t.addEventListener('click', function () { setTab(t.dataset.tab); }); });
 
@@ -118,32 +126,164 @@
   }
 
   // ------------------------------------------------------------- setup ----
-  // The checklist itself is server-rendered (lib/admin-page.mjs); this binds
-  // each checkbox to content.setup[id] so progress publishes with the copy.
+  // The checklist is server-rendered (lib/admin-page.mjs). Each task either
+  // ticks itself (data-check-*) or is ticked by the owner; ticks save on the
+  // spot through PATCH /api/admin/content, no Publish needed.
+  function taskCheck(task) {
+    var kind = task.getAttribute('data-check-kind'); if (!kind) return false;
+    var path = (task.getAttribute('data-check-path') || '').split('.');
+    var val = path.length === 2 && state.content[path[0]] ? state.content[path[0]][path[1]] : undefined;
+    if (kind === 'field') return typeof val === 'string' ? val.trim() !== '' : Boolean(val);
+    if (kind === 'value') return String(val) === (task.getAttribute('data-check-value') || '');
+    if (kind === 'media') return state.media.some(function (m) { return !m.is_placeholder; });
+    if (kind === 'host') return !/\.netlify\.app$/i.test(location.hostname) && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+    return false;
+  }
   function renderSetup() {
     var list = $('#setuplist'); if (!list) return;
     var doc = state.content.setup || {};
-    var boxes = $$('[data-setup]', list), done = 0;
-    boxes.forEach(function (box) {
-      var id = box.getAttribute('data-setup');
-      box.checked = Boolean(doc[id]);
-      box.closest('.task').classList.toggle('is-done', box.checked);
-      if (box.checked) done++;
+    var tasks = $$('.task', list), done = 0, next = null;
+    tasks.forEach(function (task) {
+      var id = task.getAttribute('data-task'), box = $('[data-setup]', task);
+      var manual = Boolean(doc[id]), auto = !manual && taskCheck(task), isDone = manual || auto;
+      box.checked = isDone; box.disabled = auto;
+      task.classList.toggle('is-done', isDone); task.classList.toggle('is-auto', auto);
+      if (isDone) done++; else if (!next && !task.hasAttribute('data-later')) next = task;
       if (!box.dataset.bound) {
         box.dataset.bound = '1';
-        box.addEventListener('change', function () {
-          if (!state.content.setup) state.content.setup = {};
-          state.content.setup[id] = box.checked;
-          box.closest('.task').classList.toggle('is-done', box.checked);
-          markDirty(); renderSetup();
+        box.addEventListener('change', function () { setTaskDone(id, box.checked); });
+        $('.task__head', task).addEventListener('click', function (ev) {
+          if (ev.target.closest('button,a,label,input')) return;
+          if (task.classList.contains('is-done')) task.classList.toggle('is-open');
         });
       }
     });
-    var total = boxes.length, left = total - done;
+    var total = tasks.length, left = total - done;
     var bar = $('#setupprogress');
-    if (bar) { $('i', bar).style.setProperty('--p', total ? done / total : 0); $('span', bar).textContent = done === total ? 'All done. Your site is fully set up.' : done + ' of ' + total + ' done · ' + left + ' to go'; }
+    if (bar) {
+      $('i', bar).style.setProperty('--p', total ? done / total : 0);
+      $('span', bar).textContent = !left ? 'All done. Your site is fully set up.' : done + ' of ' + total + ' done' + (next ? ' · next: ' + $('h3', next).textContent : '');
+    }
     var pill = $('#setupcount'); if (pill) pill.textContent = left ? String(left) : '';
+    state.setupOpen = left;
+    orderSetupTab(left);
+    syncLooks();
   }
+  // Setup goes first in the tab bar while there is work left, last when done.
+  function orderSetupTab(left) {
+    var tab = $('[data-tab="setup"]'); if (!tab) return;
+    var nav = tab.parentNode;
+    if (left && nav.firstElementChild !== tab) nav.insertBefore(tab, nav.firstElementChild);
+    if (!left && nav.lastElementChild !== tab) nav.appendChild(tab);
+  }
+  async function setTaskDone(id, on) {
+    var set = {}; set['setup.' + id] = on;
+    try { await patchContent(set); toast(on ? 'Saved. Nice work.' : 'Unticked', 'ok'); }
+    catch (err) { toast(err.message, 'bad'); }
+    renderSetup();
+  }
+  // Publishes just the given '<section>.<field>' values (setup ticks, the
+  // Looks pick) and leaves the owner's unpublished draft edits alone.
+  async function patchContent(set) {
+    var r = await api('PATCH', '/api/admin/content', { set: set });
+    state.published = r.content;
+    Object.keys(set).forEach(function (path) {
+      var p = path.split('.');
+      if (!state.content[p[0]]) state.content[p[0]] = {};
+      state.content[p[0]][p[1]] = r.content[p[0]] && p[1] in r.content[p[0]] ? r.content[p[0]][p[1]] : set[path];
+    });
+    markDirty();
+    return r;
+  }
+
+  // ----------------------------------------------------------- actions ----
+  // Task buttons: the step is the button. Kinds are validated server-side
+  // (lib/checklist.mjs); here they just go somewhere.
+  function flash(el) { if (!el) return; el.classList.remove('is-flash'); void el.offsetWidth; el.classList.add('is-flash'); setTimeout(function () { el.classList.remove('is-flash'); }, 1500); }
+  function runAction(kind, target) {
+    if (kind === 'tab') { setTab(target); return; }
+    if (kind === 'section' || kind === 'field') {
+      setTab('content');
+      var secKey = kind === 'field' ? target.split('.')[0] : target;
+      var sec = $('#sec-' + secKey);
+      if (!sec) { toast('That section is not on this site', 'bad'); return; }
+      var fld = kind === 'field' ? $('[data-path="' + target + '"]', sec) : null;
+      var el = fld || sec;
+      el.scrollIntoView({ behavior: 'smooth', block: fld ? 'center' : 'start' });
+      flash(el);
+      if (fld) { var inp = $('input,textarea,select', fld); if (inp) setTimeout(function () { inp.focus({ preventScroll: true }); }, 450); }
+      return;
+    }
+    if (kind === 'site') { window.open(target, '_blank', 'noopener'); return; }
+    if (kind === 'looks') {
+      var grid = $('#panel-setup .looks') || $('#contentform .looks');
+      if (!grid) return;
+      setTab(grid.closest('#panel-setup') ? 'setup' : 'content');
+      grid.scrollIntoView({ behavior: 'smooth', block: 'center' }); flash(grid);
+    }
+  }
+  d.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('[data-action-kind]'); if (!btn) return;
+    runAction(btn.getAttribute('data-action-kind'), btn.getAttribute('data-action-target') || '');
+  });
+
+  // ------------------------------------------------------------- looks ----
+  // The Looks picker (config.themes): cards are server-rendered into the
+  // Setup task and into <template id="looks-tpl"> for the Content tab.
+  // Preview = the live site in that look, inside the editor. Use = publish.
+  var looksTpl = $('#looks-tpl');
+  var LOOKS = looksTpl ? $$('.look', looksTpl.content).map(function (l) { return { id: l.getAttribute('data-look'), label: $('.look__label', l).textContent }; }) : [];
+  var LOOKS_FIELD = looksTpl ? ($('.looks', looksTpl.content).getAttribute('data-looks-field') || '') : '';
+  var previewId = '';
+  function currentLook() { var p = LOOKS_FIELD.split('.'); return state.published && state.published[p[0]] ? String(state.published[p[0]][p[1]] || '') : ''; }
+  function markLive(root, id) { $$('.look', root).forEach(function (l) { l.classList.toggle('is-live', l.getAttribute('data-look') === id); }); }
+  function syncLooks() { if (!LOOKS.length) return; var id = currentLook(); $$('.looks').forEach(function (g) { markLive(g, id); }); }
+  function looksPicker(value) {
+    var node = d.importNode(looksTpl.content, true).firstElementChild;
+    markLive(node, value || currentLook());
+    return node;
+  }
+  async function useLook(id) {
+    var set = {}; set[LOOKS_FIELD] = id;
+    var themeTask = $('.task[data-embed="looks"]');
+    if (themeTask) set['setup.' + themeTask.getAttribute('data-task')] = true;
+    try { await patchContent(set); renderSetup(); toast('Live now. Change it any time.', 'ok'); }
+    catch (err) { toast(err.message, 'bad'); }
+  }
+  function openPreview(id) {
+    var ov = $('#preview'); if (!ov) return;
+    previewId = id;
+    var look = LOOKS.filter(function (l) { return l.id === id; })[0];
+    $('#previewname').textContent = look ? look.label : id;
+    $('#previewframe').src = '/?theme=' + encodeURIComponent(id);
+    var live = currentLook() === id;
+    $('#previewuse').textContent = live ? 'This is your live look' : 'Use this look';
+    $('#previewuse').disabled = live;
+    ov.hidden = false; d.body.classList.add('has-preview');
+    $('#previewclose').focus();
+  }
+  function closePreview() {
+    var ov = $('#preview'); if (!ov || ov.hidden) return;
+    ov.hidden = true; $('#previewframe').src = 'about:blank'; d.body.classList.remove('has-preview');
+  }
+  function stepPreview(dir) {
+    var i = LOOKS.map(function (l) { return l.id; }).indexOf(previewId);
+    openPreview(LOOKS[(i + dir + LOOKS.length) % LOOKS.length].id);
+  }
+  if ($('#preview')) {
+    $('#previewclose').addEventListener('click', closePreview);
+    $('#previewprev').addEventListener('click', function () { stepPreview(-1); });
+    $('#previewnext').addEventListener('click', function () { stepPreview(1); });
+    $('#previewuse').addEventListener('click', async function () { var id = previewId; $('#previewuse').disabled = true; await useLook(id); closePreview(); });
+    d.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closePreview(); });
+  }
+  d.addEventListener('click', function (ev) {
+    var pv = ev.target.closest('[data-look-preview]');
+    if (pv) { openPreview(pv.getAttribute('data-look-preview')); return; }
+    var use = ev.target.closest('[data-look-use]');
+    if (use) { use.disabled = true; useLook(use.getAttribute('data-look-use')).then(function () { use.disabled = false; }); }
+  });
+
   function markDirty() {
     state.dirty = JSON.stringify(state.content) !== JSON.stringify(state.published);
     try {
@@ -172,6 +312,11 @@
       input.addEventListener('change', function () { onChange(input.checked); });
       wrap.appendChild(h('span', {}, [field.label]));
       wrap.appendChild(h('span', { class: 'switch' }, [input, h('i')]));
+    } else if (field.type === 'select' && field.ui === 'looks' && looksTpl) {
+      wrap.className = 'field field--wide';
+      wrap.appendChild(looksPicker(value));
+      if (field.help) wrap.appendChild(h('span', { class: 'help', text: field.help }));
+      return wrap;
     } else if (field.type === 'select') {
       input = h('select', {}, (field.options || []).map(function (o) {
         var v = typeof o === 'string' ? o : String(o.value), l = typeof o === 'string' ? o : (o.label || String(o.value));
@@ -232,7 +377,8 @@
       section.fields.forEach(function (field) {
         if (field.type === 'list') { sec.appendChild(grid); grid = h('div', { class: 'grid2' }); sec.appendChild(listEl(field, section.key)); return; }
         var el = fieldEl(field, state.content[section.key][field.key], function (v) { state.content[section.key][field.key] = v; markDirty(); }, { wide: field.type === 'textarea' });
-        if (field.type === 'textarea') el.style.gridColumn = '1 / -1';
+        el.dataset.path = section.key + '.' + field.key;
+        if (field.type === 'textarea' || (field.type === 'select' && field.ui === 'looks')) el.style.gridColumn = '1 / -1';
         grid.appendChild(el);
       });
       if (grid.children.length) sec.appendChild(grid);
