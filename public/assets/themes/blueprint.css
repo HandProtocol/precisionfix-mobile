@@ -26,9 +26,9 @@ h1,h2,h3{font-weight:700;letter-spacing:-.02em}
 .nav__links a{position:relative;padding:.2rem 0}
 .nav__links a:hover{color:var(--accent)}
 .lang-toggle{font-family:var(--font-mono);border-color:var(--ink)}
-.menu{background:var(--bg)}
+.menu{background:rgb(var(--bg-rgb) / .96);border:1px solid var(--ink);border-radius:0;box-shadow:4px 4px 0 var(--ink)}
 
-/* hero: copy on a ruled margin, photo as FIG. 01 */
+/* hero: copy on a ruled margin, the tachometer drafted as FIG. 01 */
 .hero{padding-top:calc(var(--nav-h) + 3rem)}
 .hero__bg{display:none}
 .hero__copy{position:relative;padding-left:1.6rem;border-left:1.5px solid var(--ink)}
@@ -36,6 +36,7 @@ h1,h2,h3{font-weight:700;letter-spacing:-.02em}
 .hero__eyebrow{font-weight:600}
 .hero__eyebrow::before{content:'▸ '}
 .hero__title{font-size:clamp(3.8rem,12vw,8.5rem);line-height:.92;letter-spacing:-.04em}
+@media (max-width:899px){.hero__title{font-size:clamp(2.4rem,12vw,4rem)}}
 .hero__line--alt{color:transparent;-webkit-text-stroke:2px var(--ink);text-stroke:2px var(--ink)}
 .hero__sub{color:var(--ink-2)}
 .hero__badge{color:var(--accent-2);border:1px dashed var(--accent);border-radius:0;background:rgb(255 90 31 / .06)}
@@ -44,7 +45,14 @@ h1,h2,h3{font-weight:700;letter-spacing:-.02em}
 .hero__media::before,.hero__media::after{content:'';position:absolute;width:14px;height:14px;border:1.5px solid var(--accent)}
 .hero__media::before{left:-8px;top:-8px;border-right:0;border-bottom:0}
 .hero__media::after{right:-8px;bottom:-8px;border-left:0;border-top:0}
-.hero__photo{border-radius:0;aspect-ratio:4/3;filter:contrast(1.05)}
+.hero__gauge{max-width:480px;justify-self:end;--g-track:var(--ink);--g-tick:var(--ink);--g-num:var(--ink);--g-red:var(--accent);--g-needle:var(--accent);--g-hub:var(--bg);--g-pin:var(--ink);--g-bezel:var(--blue);--g-face:transparent;--g-num-size:20px}
+.hero__gauge .gauge__bezel{stroke-dasharray:5 6;stroke-width:1.2}
+.hero__gauge .gauge__track{stroke-width:1.6}
+.hero__gauge .gauge__red{stroke-width:5}
+.hero__gauge .gauge__tick{stroke-width:1.2}
+.hero__gauge .gauge__tick--major{stroke-width:2.2}
+.hero__gauge .gauge__hub{stroke:var(--ink);stroke-width:1.6}
+.hero__gauge .gauge__unit{fill:var(--blue)}
 .hero__cap{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin:.7rem 0 0;padding-top:.6rem;border-top:1px dashed var(--line-2)}
 .decor--plate{display:inline-block;color:var(--accent);font-weight:600}
 .decor--plate::after{content:' —'}
@@ -68,6 +76,21 @@ h1,h2,h3{font-weight:700;letter-spacing:-.02em}
 .service__title{font-family:var(--font-display);font-weight:700;font-size:1.1rem}
 .service__detail{font-family:var(--font-mono);font-size:.8rem;color:var(--ink-3)}
 .service__arrow{color:var(--accent);opacity:1;width:12px;height:12px;border-width:2px}
+
+/* booking prompts: a callout plate with the drop shadow the buttons wear */
+.hero__trust{font-family:var(--font-mono);font-size:.76rem;color:var(--ink-2)}
+.hero__trust li::before{background:var(--blue)}
+.cta__band{background:var(--bg);border:1px solid var(--ink);box-shadow:4px 4px 0 var(--ink);border-radius:0}
+.cta__sub{color:var(--ink-2)}
+.cta__fine{color:var(--blue)}
+.cta__strip{border:1px solid var(--ink);background:var(--bg);box-shadow:4px 4px 0 var(--ink);border-radius:0}
+.cta__strip:hover{border-color:var(--ink);box-shadow:6px 6px 0 var(--accent)}
+.cta__strip-text{font-weight:700;letter-spacing:-.02em}
+/* questions: index rows */
+.faq__item{background:var(--bg);border:0;border-bottom:1px solid var(--line-2);border-radius:0}
+.faq__list{border-top:1px solid var(--ink)}
+.faq__a{color:var(--ink-2)}
+.step__n{border-color:var(--ink);color:var(--ink);font-weight:600;border-radius:0}
 
 /* why: annotated notes */
 .why__grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem}

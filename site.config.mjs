@@ -2,6 +2,7 @@
 // factory certified, bilingual. Five switchable themes (site/themes.mjs);
 // the editor, emails, and meta theme-color use the default one.
 import { CHECKLIST } from './site/checklist.mjs';
+import { BOOKING } from './site/booking.mjs';
 import { DEFAULT_THEME, THEMES, themePickerOptions } from './site/themes.mjs';
 
 const base = THEMES[DEFAULT_THEME];
@@ -17,7 +18,7 @@ export default {
   supabase: { projectRef: 'vconmgerblqbworcqkvr', schema: 'command' },
 
   // Bump whenever public/assets/** change (site + admin assets both carry it).
-  assetVersion: '20260916b',
+  assetVersion: '20261014b',
 
   fonts: base.fonts,
 
@@ -41,8 +42,10 @@ export default {
   labels: {},
 
   media: {
-    // The five photos from the previous site, shipped with this one. Featured
-    // leads the hero; the rest fill the gallery in order (reorder in /admin/).
+    // The five photos from the previous site, shipped with this one. They fill
+    // the gallery in order (reorder in /admin/). The hero carries no photo (an
+    // SVG tachometer, site/page.mjs gauge()); Featured is the share-preview
+    // image (og:image + JSON-LD) and nothing else.
     seed: [
       photo('porsche-911-gt3-rs', 1000, 577, 'Porsche 911 GT3 RS in the shop', 'In the shop, track-ready and flawless', 'Porsche', true),
       photo('engine-rebuild', 752, 1000, 'An engine mid tear-down on the bench', 'Deep in a full engine tear-down and rebuild', 'Engine'),
@@ -53,44 +56,15 @@ export default {
     placeholderPalette: ['#e8311a', '#c42a15', '#f5a623', '#161819', '#252729'],
   },
 
-  // Netlify Forms → Resend. The booking form in site/page.mjs posts to
-  // Netlify (definition in public/forms/booking.html); Netlify fires
-  // netlify/functions/submission-created.mjs, which emails the owner and
-  // confirms the customer. Recipients: PRECISIONFIX_FORM_NOTIFY env (comma
-  // list) → this `notify` list → PRECISIONFIX_OWNER_EMAILS.
-  forms: {
-    booking: {
-      label: 'Booking request',
-      notify: [], // set on the Netlify site as PRECISIONFIX_FORM_NOTIFY once the owner's inbox is known
-      replyField: 'email',
-      nameField: 'name',
-      fields: [
-        { key: 'name', label: 'Name' },
-        { key: 'phone', label: 'Phone' },
-        { key: 'email', label: 'Email' },
-        { key: 'contact_pref', label: 'Prefers' },
-        { key: 'vehicle_year', label: 'Year' },
-        { key: 'vehicle_make', label: 'Make' },
-        { key: 'vehicle_model', label: 'Model' },
-        { key: 'mileage', label: 'Mileage' },
-        { key: 'vin', label: 'VIN' },
-        { key: 'service', label: 'Service' },
-        { key: 'issue', label: 'What it is doing' },
-        { key: 'address', label: 'Where the car is' },
-        { key: 'city', label: 'City' },
-        { key: 'preferred_date', label: 'Preferred date' },
-        { key: 'preferred_time', label: 'Preferred time' },
-        { key: 'lang', label: 'Language' },
-      ],
-      confirm: {
-        subject: 'PrecisionFix got your booking request, {name}',
-        body:
-          'Thanks, {name}. Your request is in and I will text or call you shortly to confirm a time and give you a clear quote.\n\nIf anything changes with the car in the meantime, just reply to this email.\n\n— PrecisionFix, Mobile Mechanic, Austin TX',
-      },
-    },
-  },
-
   checklist: CHECKLIST,
+
+  // Booking calendar, request mode (site/booking.mjs): the #book section is
+  // a day and time → details → sent → your car (optional) funnel; requests land in
+  // command.precisionfix_bookings and the owner confirms them in the
+  // Bookings tab of /admin/. Owner notifications go to
+  // PRECISIONFIX_BOOKING_NOTIFY (or PRECISIONFIX_FORM_NOTIFY, the older
+  // name) → PRECISIONFIX_OWNER_EMAILS. Replaced the Netlify Form on 2026-09-16.
+  booking: BOOKING,
 
   madeBy: { label: 'Made by HAND', href: 'https://handprotocol.org' },
 };

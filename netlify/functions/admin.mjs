@@ -15,6 +15,7 @@
 //   GET    /api/admin/editors                  (owner) list
 //   POST   /api/admin/editors                  (owner) { email, role }
 //   DELETE /api/admin/editors/:id              (owner)
+//   *      /api/admin/bookings…                 the booking calendar (lib/booking-admin.mjs)
 //
 // Every successful write purges the CDN cache for the home page.
 
@@ -24,6 +25,7 @@ import { CONTENT_KEY, SECTIONS, sanitize } from './lib/site.mjs';
 import { applyPaths } from './lib/sanitize.mjs';
 import { loadSite, toView } from './lib/content.mjs';
 import { handleError, json, readJson, requireEditor, sameOrigin } from './lib/http.mjs';
+import { adminBookings } from './lib/booking-admin.mjs';
 
 const ALLOWED_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif', 'image/gif': 'gif' };
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
@@ -277,6 +279,11 @@ export default async (req) => {
       if (!second && m === 'GET') return await listEditors();
       if (!second && m === 'POST') return await addEditor(req, editor);
       if (second && UUID_RE.test(second) && m === 'DELETE') return await removeEditor(second, editor);
+    }
+
+    if (head === 'bookings') {
+      const url2 = url;
+      return await adminBookings(req, editor, parts.slice(1), url2);
     }
 
     if (head === 'site' && m === 'GET') {

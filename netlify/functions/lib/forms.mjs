@@ -19,7 +19,7 @@
 // as for the sign-in email.
 
 import { config, siteEnv, siteName } from './config.mjs';
-import { emailConfigured } from './email.mjs';
+import { emailConfigured, sendEmail as resend } from './email.mjs';
 import { escapeHtml } from './html.mjs';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -114,21 +114,6 @@ export function confirmationHtml(form, data) {
     <table role="presentation" style="border-collapse:collapse;width:100%;">${summary}</table>
   </div>
 </div>`;
-}
-
-async function resend(payload) {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: process.env.EMAIL_FROM, ...payload }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    console.warn(`[forms] resend ${res.status}: ${body.slice(0, 200)}`);
-    return { ok: false, reason: `email-${res.status}` };
-  }
-  const data = await res.json().catch(() => ({}));
-  return { ok: true, id: data.id };
 }
 
 // Sends both emails for one submission. Never throws: Netlify has already

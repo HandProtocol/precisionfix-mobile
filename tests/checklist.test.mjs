@@ -64,6 +64,7 @@ const RICH = [
       { label: 'Open Contact', kind: 'field', target: 'contact.phone' },
       { label: 'See section', kind: 'section', target: 'contact' },
       { label: 'Media', kind: 'tab', target: 'media' },
+      { label: 'Bookings', kind: 'tab', target: 'bookings' },
       { label: 'Try booking', kind: 'site', target: '#book' },
       { label: 'Namecheap', kind: 'url', target: 'https://namecheap.com/x' },
       { label: 'drop: bad tab', kind: 'tab', target: 'nope' },
@@ -77,6 +78,7 @@ const RICH = [
   { id: 'lang', title: 'Lang', check: { kind: 'value', path: 'site.lang', value: 'es' } },
   { id: 'badcheck', title: 'Bad check', check: { kind: 'field' } },
   { id: 'badkind', title: 'Bad kind', check: { kind: 'magic', path: 'a.b' }, embed: 'video' },
+  { id: 'booked', title: 'Test booking', check: { kind: 'booking' } },
 ];
 
 const THEMES = {
@@ -92,9 +94,10 @@ test('actions are validated per kind, checks per kind, embeds whitelisted', () =
   const byId = Object.fromEntries(items.map((i) => [i.id, i]));
   assert.deepEqual(byId.theme.actions, [{ label: 'Open looks', kind: 'looks', target: '' }]);
   assert.equal(byId.theme.embed, 'looks');
-  assert.deepEqual(byId.copy.actions.map((a) => a.kind), ['field', 'section', 'tab', 'site', 'url']);
+  assert.deepEqual(byId.copy.actions.map((a) => a.kind), ['field', 'section', 'tab', 'tab', 'site', 'url']);
+  assert.equal(byId.copy.actions[3].target, 'bookings');
   // a '#hash' site target is made root-relative so it opens the live site, not /admin/#hash
-  assert.equal(byId.copy.actions[3].target, '/#book');
+  assert.equal(byId.copy.actions[4].target, '/#book');
   assert.deepEqual(byId.copy.check, { kind: 'field', path: 'contact.phone', value: '' });
   assert.deepEqual(byId.photos.check, { kind: 'media', path: '', value: '' });
   assert.deepEqual(byId.domain.check, { kind: 'host', path: '', value: '' });
@@ -102,6 +105,7 @@ test('actions are validated per kind, checks per kind, embeds whitelisted', () =
   assert.equal(byId.badcheck.check, null);
   assert.equal(byId.badkind.check, null);
   assert.equal(byId.badkind.embed, '');
+  assert.deepEqual(byId.booked.check, { kind: 'booking', path: '', value: '' });
 });
 
 test('task html carries action buttons, check attributes, and the embedded looks grid', () => {

@@ -185,6 +185,10 @@ export function callbarHtml(cta) {
   return `<div class="callbar" id="callbar">${ctaButton(cta, '', { magnetic: false })}</div>`;
 }
 
+// The booking calendar's #book form (config.booking, request mode). Empty
+// string when the site has no calendar. See lib/booking-form.mjs.
+export { bookingBlock } from './booking-form.mjs';
+
 export function siteScript() {
   return `<script src="/assets/site.js?v=${e(config.assetVersion)}" defer></script>`;
 }

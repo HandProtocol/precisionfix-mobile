@@ -23,21 +23,82 @@ test('renders every section, the nav, the booking form, lightbox data, JSON-LD a
   assert.equal(html.includes('${'), false);
 });
 
-test('the booking form is a Netlify form with every field the static definition and the email config list', async () => {
+test('the hero carries no photo: an inline SVG tachometer instead; the featured photo keeps the gallery and the share preview', () => {
   const html = full();
-  assert.match(html, /<form class="form" id="bookform" name="booking" method="POST" action="\/forms\/booking\.html" data-netlify="true" netlify-honeypot="bot-field">/);
-  assert.match(html, /<input type="hidden" name="form-name" value="booking">/);
-  const { readFileSync } = await import('node:fs');
-  const staticDef = readFileSync(new URL('../public/forms/booking.html', import.meta.url), 'utf8');
-  const { default: cfg } = await import('../site.config.mjs');
-  const names = (s) => [...s.matchAll(/name="([a-z_-]+)"/g)].map((m) => m[1]).filter((n) => !['booking', 'form-name', 'robots'].includes(n));
-  const live = new Set(names(html.slice(html.indexOf('id="bookform"'), html.indexOf('</form>'))));
-  for (const n of names(staticDef)) assert.ok(live.has(n), `static form field ${n} missing from the live form`);
-  for (const f of cfg.forms.booking.fields) assert.ok(live.has(f.key), `email field ${f.key} not in the form`);
-  for (const s of DEFAULT_CONTENT.services.items) assert.ok(html.includes(`<option value="${s.title.replace(/&/g, '&amp;')}"`), s.title);
+  const start = html.indexOf('<section class="hero"');
+  const hero = html.slice(start, html.indexOf('</section>', start));
+  assert.ok(hero.length > 500, 'found the hero');
+  assert.equal(/<img\b/.test(hero), false, 'no <img> in the hero');
+  assert.equal(/hero__img|hero__photo/.test(hero), false);
+  assert.match(hero, /<figure class="hero__media hero__gauge" aria-hidden="true">\s*<svg class="gauge" viewBox="0 0 400 400"/);
+  const figure = hero.slice(hero.indexOf('hero__gauge'), hero.indexOf('</figure>'));
+  for (let n = 0; n <= 8; n++) assert.match(figure, new RegExp(`class="gauge__num(?: is-red)?"[^>]*>${n}<`), `numeral ${n}`);
+  assert.equal((figure.match(/class="gauge__tick gauge__tick--major(?: is-red)?"/g) || []).length, 9);
+  assert.equal((figure.match(/class="gauge__tick(?: is-red)?"/g) || []).length, 8, 'a half-step between each pair');
+  assert.equal((figure.match(/ is-red"/g) || []).length, 6, 'red zone from 6.5: ticks 6.5, 7, 7.5, 8 and numerals 7, 8');
+  assert.match(figure, /class="gauge__red"/);
+  assert.match(figure, /class="gauge__needle"/);
+  assert.equal(/NaN|undefined|Infinity/.test(figure), false, 'every coordinate computed');
+  assert.equal(/<a\b|<button\b|tabindex/.test(figure), false, 'decorative: nothing focusable');
+  // bilingual caption, like the rest of the page
+  assert.match(figure, /<figcaption class="hero__cap">.*data-es="[^"]+"/s);
+  // the featured photo still does its other two jobs
+  assert.match(html, /<meta property="og:image" content="[^"]*porsche-911-gt3-rs[^"]*">/); // through the image CDN on a real origin
+  assert.match(html.slice(html.indexOf('id="gallery"')), /porsche-911-gt3-rs/);
+  // and it works in every look
+  for (const id of THEME_IDS) {
+    const themed = full({ url: `${ORIGIN}/?theme=${id}` });
+    assert.match(themed, /class="hero__media hero__gauge"/, id);
+    assert.equal(/class="hero__img"|class="hero__photo"/.test(themed), false, id);
+  }
+});
+
+test('the booking section renders the engine funnel: one service, no car fields before sending, the cities, the pricing in EN and ES, the owner copy', async () => {
+  const html = full();
+  const { BOOKING } = await import('../netlify/functions/lib/config.mjs');
+  assert.ok(BOOKING && BOOKING.mode === 'request');
+  assert.match(html, /<form class="form booking" id="booking" method="POST" action="\/api\/booking" data-booking data-tz="America\/Chicago"/);
+  assert.match(html, /\/booking\/booking\.css\?v=/);
+  assert.match(html, /\/booking\/booking\.js\?v=/);
+  // every request starts on the one service: no pick, a hidden field
+  assert.match(html, /<input type="hidden" name="service" value="visit">/);
+  assert.equal(html.includes('data-step="service"'), false);
+  assert.equal(html.includes('name="service" value="other"'), false);
   assert.match(html, /<option value="Cedar Park">Cedar Park<\/option>/);
-  assert.match(html, /name="vehicle_year"[^>]*required/);
-  assert.match(html, /name="issue"[^>]*required/);
+  // nothing about the car, and no "what is it doing", before the request is sent
+  const form = html.slice(html.indexOf('<form class="form booking"'), html.indexOf('</form>'));
+  const beforeSent = form.slice(0, form.indexOf('class="form__done"'));
+  for (const key of ['vehicle_year', 'vehicle_make', 'vehicle_model', 'mileage', 'vin', 'car_model', 'issues']) assert.equal(beforeSent.includes(`name="${key}"`), false, key);
+  assert.match(beforeSent, /<textarea name="notes" rows="4" maxlength="1500" placeholder="Where the car is parked, a gate code, the best time to reach you"/);
+  assert.equal(/what is the car doing|what is it doing|symptom|diagnos/i.test(beforeSent), false);
+  // the pricing, right above the button, in both languages
+  const actions = form.slice(form.indexOf('<div class="form__actions"'), form.indexOf('form__submit'));
+  assert.match(actions, /<div class="booking__pricing" data-booking-pricing><strong data-es="Precios">Pricing<\/strong>/);
+  assert.ok(actions.includes('<p data-es="Un depósito de $50.00 reserva su hora y cuenta para la primera hora ($150.00): $100.00 más cuando llegamos, luego $150.00 cada hora después.">A $50.00 deposit holds your time and goes toward the first hour ($150.00): $100.00 more when we arrive, then $150.00 each hour after.</p>'), 'the deposit line');
+  assert.ok(actions.includes('<p data-es="Se añade un recargo de $20.00 por gasolina.">A $20.00 gas surcharge is added.</p>'), 'the surcharge line');
+  assert.match(form, /<button class="btn btn--primary btn--lg form__submit" type="submit"><span data-es="Pedir esta hora">Request this time<\/span><\/button>/);
+  // after sending: the fixed heading, then the car and the notice (hidden until JS has the token)
+  assert.match(form, /<h3 data-es="Solicitud enviada">Request sent<\/h3>/);
+  assert.match(form, /Nothing is set until the owner confirms\./);
+  assert.match(form, /<legend><span data-es="¿Qué carro es\?">Which car is it\?<\/span><\/legend>/);
+  assert.match(form, /<legend><span data-es="¿Algo que haya notado\? \(opcional\)">Anything you have noticed\? \(optional\)<\/span><\/legend>/);
+  assert.match(form, /PrecisionFix is not responsible for a self-diagnosis/);
+  assert.match(form, /PrecisionFix no se hace responsable de un autodiagnóstico/);
+  assert.equal(/reserved|taken|\bsíntoma/i.test(form), false);
+  assert.equal((form.match(/—/g) || []).length, 0, 'no em dashes');
+  assert.match(html, /<select name="slot" required><option value="morning" data-es="Mañana \(8:00 AM a 11:00 AM\)">Morning \(8:00 AM to 11:00 AM\)<\/option><option value="midday"/);
+  assert.match(html, /I confirm every request by text or call/);
+  assert.match(html, /<p class="booking__success" data-es="Recibido\. Te escribo o te llamo en breve para confirmar la hora\.">Got it\. I will text or call you shortly to confirm a time\.<\/p>/);
+  assert.match(html, /<p class="form__note" data-es="No pagas nada para pedir un horario\. Un depósito de \$50/);
+  assert.equal(html.includes('data-netlify'), false);
+  assert.equal(html.includes('/forms/booking.html'), false);
+  // the calendar settings section is in the schema with PrecisionFix's defaults
+  const cal = SECTIONS.find((s) => s.key === 'calendar');
+  assert.ok(cal && !cal.hidden);
+  const doc = sanitize(DEFAULT_CONTENT);
+  assert.equal(doc.calendar.hours.length, 6);
+  assert.equal(doc.calendar.windows[1].label_es, 'Mediodía');
+  assert.equal(doc.calendar.lead, '4');
 });
 
 test('every theme renders with its own data-theme, stylesheet, fonts and palette; ?theme= wins over the owner pick; bad ids fall back', () => {
@@ -69,13 +130,68 @@ test('escapes owner text in English and Spanish, including inside data-es and fo
   assert.match(html, /data-es="&quot;&gt;&lt;img src=x&gt;"/);
 });
 
+test('conversion: trust line, booking prompts after Services and the photos, what-happens-next steps, the FAQ, and the call bar', () => {
+  const html = full();
+  // hero: the reassurance items swap one by one, the wordmark H1 carries the eyebrow for search
+  assert.match(html, /<h1 class="hero__title"><span class="hero__line">Precision<\/span><span class="hero__line hero__line--alt">Fix<\/span><span class="sr"> — Austin, TX · Mobile Mechanic<\/span><\/h1>/);
+  assert.match(html, /<ul class="hero__trust"><li data-es="Cotización clara primero">Clear quote first<\/li><li data-es="No pagas hasta que confirme">Nothing to pay until I confirm<\/li>/);
+  // the band sits between Services and Why me, the strip between Work and Area
+  const at = (s) => html.indexOf(s);
+  assert.equal(html.includes('id="cta"'), false, 'no band after Services (removed 2026-10-14)');
+  assert.ok(at('id="work"') < at('cta--strip') && at('cta--strip') < at('id="area"'), 'strip after the photos');
+  assert.match(html, /<a class="cta__strip reveal" href="#book">\s*<span class="cta__strip-text" data-es="¿Tu auto es el siguiente\?<br><b>Reserva una visita\.<\/b>">Your car next\?<br><b>Book a visit\.<\/b><\/span>\s*<span class="btn btn--primary"><span data-es="Elegir un horario">Pick a time<\/span><\/span>/);
+  // FAQ: native <details>, between Area and Book, numbered like the other sections
+  assert.ok(at('id="area"') < at('id="faq"') && at('id="faq"') < at('id="book"'), 'FAQ before the form');
+  assert.equal((html.match(/<details class="faq__item reveal"/g) || []).length, DEFAULT_CONTENT.faq.items.length);
+  assert.match(html, /<summary class="faq__q"><span data-es="¿De verdad vienes a mí\?">Do you really come to me\?<\/span>/);
+  // the steps live in the booking column
+  const book = html.slice(at('id="book"'), at('<footer'));
+  assert.match(book, /<h3 class="steps__title" data-es="Qué sigue">What happens next<\/h3>/);
+  assert.equal((book.match(/<li class="step">/g) || []).length, 4);
+  assert.match(book, /<b class="step__title" data-es="Asegúralo con un depósito de \$50">Lock it in with a \$50 deposit<\/b>/);
+  assert.match(book, /<span class="step__n" aria-hidden="true">1<\/span>/);
+  // the persistent CTAs stay: header button (desktop), call bar (phones), hidden behind the open menu
+  assert.match(html, /<a class="btn btn--primary btn--sm nav__cta" href="#book">/);
+  assert.match(html, /<div class="callbar" id="callbar"><a class="btn btn--primary " href="#book">/);
+  // owner text in the prompts is escaped, in both languages
+  const nasty = sanitize({ cta: { strip: '<b>x</b>\n"y"', strip_es: 'a"b' }, faq: { items: [{ q: '<q>', q_es: 'x', a: '"a"', a_es: 'y' }] } });
+  const bad = renderPage({ content: nasty, media: [] });
+  assert.match(bad, /&lt;b&gt;x&lt;\/b&gt;<br><b>&quot;y&quot;<\/b>/);
+  assert.match(bad, /data-es="a&quot;b"/);
+  assert.match(bad, /<span data-es="x">&lt;q&gt;<\/span>/);
+  assert.equal(bad.includes('<q>'), false);
+});
+
+test('search: AutoRepair structured data with address, E.164 phone, opening hours and the services catalog; FAQPage; share locale tags', () => {
+  const html = full();
+  const ld = JSON.parse(html.match(/<script type="application\/ld\+json">(\{"@context":"https:\/\/schema\.org","@type":"AutoRepair"[\s\S]*?)<\/script>/)[1]);
+  assert.equal(ld.telephone, '+15125713425');
+  assert.deepEqual(ld.address, { '@type': 'PostalAddress', addressLocality: 'Austin', addressRegion: 'TX', addressCountry: 'US' });
+  assert.equal(ld.openingHoursSpecification.length, 6);
+  assert.deepEqual(ld.openingHoursSpecification[5], { '@type': 'OpeningHoursSpecification', dayOfWeek: 'Saturday', opens: '09:00', closes: '15:00' });
+  assert.equal(ld.hasOfferCatalog.itemListElement.length, DEFAULT_CONTENT.services.items.length);
+  assert.equal(ld.hasOfferCatalog.itemListElement[1].itemOffered.name, 'Brake Service');
+  assert.deepEqual(ld.areaServed[0], { '@type': 'City', name: 'Austin' });
+  const faq = JSON.parse(html.match(/<script type="application\/ld\+json">(\{"@context":"https:\/\/schema\.org","@type":"FAQPage"[\s\S]*?)<\/script>/)[1]);
+  assert.equal(faq.mainEntity.length, DEFAULT_CONTENT.faq.items.length);
+  assert.equal(faq.mainEntity[0].acceptedAnswer.text, DEFAULT_CONTENT.faq.items[0].a);
+  assert.match(html, /<meta property="og:locale" content="en_US">\n<meta property="og:locale:alternate" content="es_US">/);
+  assert.match(html, /<meta property="og:image:alt" content="Porsche 911 GT3 RS in the shop">/);
+  // no FAQ, no FAQPage; no hours, no openingHoursSpecification; a bare phone stays a plain string
+  const bare = renderPage({ content: sanitize({ faq: { items: [] }, calendar: { hours: [] }, contact: { phone: '12345', location: '' } }), media: [] });
+  assert.equal(bare.includes('"FAQPage"'), false);
+  assert.equal(bare.includes('openingHoursSpecification'), false);
+  assert.equal(bare.includes('"PostalAddress"'), false);
+  assert.match(bare, /"telephone":"\+12345"/);
+});
+
 test('emptied lists hide their sections and drop their nav links; the language switch can be turned off', () => {
-  const c = sanitize({ credentials: { items: [] }, services: { items: [] }, why: { items: [] }, area: { heading: '', cities: [] }, site: { lang_toggle: false } });
+  const c = sanitize({ credentials: { items: [] }, services: { items: [] }, why: { items: [] }, area: { heading: '', cities: [] }, site: { lang_toggle: false }, faq: { items: [] }, cta: { strip: '' }, booking: { steps: [] }, hero: { trust: '' } });
   const html = renderPage({ content: c, media: [] });
-  for (const id of ['id="creds"', 'id="services"', 'id="why"', 'id="work"', 'id="area"', 'id="lightbox"', 'lang-toggle']) assert.equal(html.includes(id), false, id);
+  for (const id of ['id="creds"', 'id="services"', 'id="why"', 'id="work"', 'id="area"', 'id="lightbox"', 'lang-toggle', 'id="faq"', 'id="cta"', 'cta--strip', 'class="steps', 'hero__trust']) assert.equal(html.includes(id), false, id);
   assert.match(html, /<nav class="nav__links"[^>]*><a href="#book"[^>]*>Book<\/a><\/nav>/);
   assert.match(html, /id="book"/);
-  assert.match(html, /<option value="Something else"/);
+  assert.match(html, /<input type="hidden" name="service" value="visit">/);
 });
 
 test('the Search Console code becomes a meta tag; the schema carries the hidden setup section; the admin has a Setup tab', () => {

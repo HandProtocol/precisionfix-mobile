@@ -77,6 +77,7 @@ export function assertSections(sections) {
 
 function checkField(f, where) {
   if (!f.key || !/^[a-z][a-z0-9_]*$/.test(f.key)) throw new Error(`schema: bad field key in ${where}`);
+  if (f.private !== undefined && typeof f.private !== 'boolean') throw new Error(`schema: ${where}.${f.key} private must be true or false`);
   if (TEXT_TYPES.has(f.type)) {
     if (!(Number(f.max) > 0)) throw new Error(`schema: ${where}.${f.key} needs max`);
   } else if (f.type === 'list') {
@@ -92,9 +93,39 @@ function checkField(f, where) {
   }
 }
 
+// The document a visitor may read: fields (and list columns) marked
+// `private: true` are removed. GET /api/content is public, so anything the
+// owner is told "only you see" must carry the flag. Editors get the stored
+// document untouched (they PATCH whole lists back, so a stripped copy would
+// erase the private columns). Returns a new document; never mutates.
+export function publicContent(sections, doc) {
+  if (!doc || typeof doc !== 'object') return {};
+  const out = { ...doc };
+  for (const section of sections) {
+    const sec = doc[section.key];
+    if (!sec || typeof sec !== 'object') continue;
+    const copy = { ...sec };
+    for (const field of section.fields) {
+      if (field.private) { delete copy[field.key]; continue; }
+      if (field.type !== 'list' || !Array.isArray(sec[field.key])) continue;
+      const hidden = field.item.filter((sub) => sub.private).map((sub) => sub.key);
+      if (!hidden.length) continue;
+      copy[field.key] = sec[field.key].map((row) => {
+        if (!row || typeof row !== 'object') return row;
+        const kept = { ...row };
+        for (const key of hidden) delete kept[key];
+        return kept;
+      });
+    }
+    out[section.key] = copy;
+  }
+  return out;
+}
+
 // Applies { '<section>.<field>': value } onto a complete document, checking
-// every path against the sections (lists cannot be set this way). Returns a
-// new document; the input is not mutated. Throws a 400 on an unknown path so
+// every path against the sections (a list is replaced whole and only by an
+// array; the caller sanitizes the result). Returns a new document; the
+// input is not mutated. Throws a 400 on an unknown path so
 // PATCH /api/admin/content never writes outside the schema.
 export function applyPaths(sections, base, set) {
   const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
@@ -107,7 +138,8 @@ export function applyPaths(sections, base, set) {
     const parts = String(path).split('.');
     const section = parts.length === 2 && sections.find((s) => s.key === parts[0]);
     const field = section && section.fields.find((f) => f.key === parts[1]);
-    if (!field || field.type === 'list') throw bad(`Unknown field ${path}`);
+    if (!field) throw bad(`Unknown field ${path}`);
+    if (field.type === 'list' && !Array.isArray(value)) throw bad(`${path} takes a list`);
     out[parts[0]][parts[1]] = value;
   }
   return out;

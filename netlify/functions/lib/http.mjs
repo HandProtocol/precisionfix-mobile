@@ -4,10 +4,29 @@ import { config } from './config.mjs';
 import { COOKIE, parseCookies, verifySession } from './session.mjs';
 import { sb } from './db.mjs';
 
+// netlify.toml [[headers]] rules reach static files only, never a function's
+// answer, so every function response sets these itself. same-origin (not
+// no-referrer): the manage and one-tap URLs carry a secret, and no-referrer
+// would make the form's Origin "null" and fail sameOrigin().
+export const SECURITY_HEADERS = Object.freeze({
+  'Referrer-Policy': 'same-origin',
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+});
+
 export function json(status, body, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...extraHeaders },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...extraHeaders, ...SECURITY_HEADERS },
+  });
+}
+
+// Function-served HTML (the manage page, the one-tap page). Never cached,
+// never indexed.
+export function html(status, body, extraHeaders = {}) {
+  return new Response(body, {
+    status,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow', ...extraHeaders, ...SECURITY_HEADERS },
   });
 }
 

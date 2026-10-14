@@ -7,7 +7,7 @@
 // Item shape (site/checklist.mjs, imported by site.config.mjs):
 //   { id: 'domain', title: 'Point your domain at the site', why: '…',
 //     actions: [{ label, kind, target }],   // buttons under the steps; kinds:
-//       tab      target: content | media | editors | history | setup
+//       tab      target: content | media | editors | history | setup | bookings
 //       section  target: '<section key>'        (Content tab, scroll + highlight)
 //       field    target: '<section>.<field>'    (…and focus the input)
 //       site     target: '#hash' or '/path'     (opens the live site in a new tab; '#hash' means '/#hash', never the admin page)
@@ -17,6 +17,7 @@
 //       field    path non-empty   value  path equals value
 //       media    a real (non-placeholder) photo exists
 //       host     the admin is served on a host that is not *.netlify.app
+//       booking  a booking exists from one of the editors' emails (the owner's own test)
 //     embed: 'looks',                          // the Looks picker inside the task
 //     phone: ['step', …],                      // fallback prose, phone first
 //     desktop: ['step', …],                    // optional: from a computer
@@ -29,9 +30,9 @@ import { escapeHtml as e } from './html.mjs';
 
 const ID_RE = /^[a-z][a-z0-9_]*$/;
 const PATH_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
-const TABS = new Set(['content', 'media', 'editors', 'history', 'setup']);
+const TABS = new Set(['content', 'media', 'editors', 'history', 'setup', 'bookings']);
 const ACTION_KINDS = new Set(['tab', 'section', 'field', 'site', 'url', 'looks']);
-const CHECK_KINDS = new Set(['field', 'value', 'media', 'host']);
+const CHECK_KINDS = new Set(['field', 'value', 'media', 'host', 'booking']);
 
 function normalizeAction(a) {
   if (!a || !ACTION_KINDS.has(a.kind) || !a.label) return null;

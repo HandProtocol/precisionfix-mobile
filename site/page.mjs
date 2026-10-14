@@ -9,6 +9,10 @@
 // Bilingual: any element with data-es swaps to Spanish when the visitor's
 // browser prefers it or they tap EN / ES (site.js). Owner text goes through
 // e() every time, English and Spanish alike.
+//
+// The #book section renders the engine's booking calendar (site/booking.mjs
+// → lib/booking-form.mjs bookingBlock()): service → day → time → details,
+// stored as a request the owner confirms in /admin/.
 
 import * as B from '../netlify/functions/lib/blocks.mjs';
 import { toView } from '../netlify/functions/lib/content.mjs';
@@ -23,15 +27,6 @@ const brs = (s) => e(s).replace(/\n/g, '<br>');
 const bi = (tag, en, es, cls = '', attrs = '') =>
   `<${tag}${cls ? ` class="${cls}"` : ''}${es ? ` data-es="${brs(es)}"` : ''}${attrs ? ` ${attrs}` : ''}>${brs(en)}</${tag}>`;
 
-const MAKES = ['Mercedes-Benz', 'BMW', 'Audi', 'Volkswagen', 'Porsche', 'Tesla', 'Toyota', 'Lexus', 'Honda', 'Acura', 'Ford', 'Chevrolet', 'GMC', 'Ram', 'Jeep', 'Nissan', 'Infiniti', 'Hyundai', 'Kia', 'Subaru', 'Mazda', 'Land Rover', 'Mini', 'Volvo'];
-const TIMES = [
-  ['Morning (8–11)', 'Mañana (8–11)'],
-  ['Midday (11–2)', 'Mediodía (11–2)'],
-  ['Afternoon (2–5)', 'Tarde (2–5)'],
-  ['Evening (5–8)', 'Noche (5–8)'],
-  ['Flexible', 'Flexible'],
-];
-
 function httpsUrl(value) {
   try {
     const u = new URL(String(value || ''));
@@ -44,6 +39,77 @@ function httpsUrl(value) {
 function heroTitle(headline) {
   const lines = String(headline || '').split('\n').map((l) => l.trim()).filter(Boolean);
   return lines.map((l, i) => `<span class="hero__line${i ? ' hero__line--alt' : ''}">${e(l)}</span>`).join('');
+}
+
+// "Line one\nLine two" → line one, a break, line two in <b> (the accent
+// colour). Owner text is escaped; the <br> and <b> are ours. Used for the
+// booking prompts' headlines, in the markup and inside data-es alike.
+function mark(text) {
+  const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return '';
+  const [first, ...rest] = lines;
+  return rest.length ? `${e(first)}<br><b>${e(rest.join(' '))}</b>` : e(first);
+}
+
+// "a · b · c" (EN) + "x · y · z" (ES) → <li data-es="x">a</li>… so each item
+// swaps on its own; a missing Spanish item keeps the English.
+function dots(en, es, cls) {
+  const split = (s) => String(s || '').split(/\s*·\s*/).map((x) => x.trim()).filter(Boolean);
+  const a = split(en), b = split(es);
+  if (!a.length) return '';
+  return `<ul class="${cls}">${a.map((x, i) => `<li${b[i] ? ` data-es="${e(b[i])}"` : ''}>${e(x)}</li>`).join('')}</ul>`;
+}
+
+function faq(c) {
+  return c.faq.items
+    .filter((it) => it.q && it.a)
+    .map(
+      (it, i) => `<details class="faq__item reveal" style="--d:${i * 40}ms">
+  <summary class="faq__q">${bi('span', it.q, it.q_es)}<span class="faq__mark" aria-hidden="true"></span></summary>
+  ${bi('p', it.a, it.a_es, 'faq__a')}
+</details>`
+    )
+    .join('\n');
+}
+
+function steps(c) {
+  const items = (c.booking.steps || []).filter((s) => s.title);
+  if (!items.length) return '';
+  return `<div class="steps reveal">
+  ${c.booking.steps_heading ? bi('h3', c.booking.steps_heading, c.booking.steps_heading_es, 'steps__title') : ''}
+  <ol class="steps__list">${items
+    .map(
+      (s, i) => `<li class="step"><span class="step__n" aria-hidden="true">${i + 1}</span><div class="step__text">${bi('b', s.title, s.title_es, 'step__title')}${s.body ? bi('span', s.body, s.body_es, 'step__body') : ''}</div></li>`
+    )
+    .join('')}</ol>
+</div>`;
+}
+
+// Opening hours for the structured data, from the owner's calendar hours
+// (engine section `calendar`, defaults in site/booking.mjs).
+const DAYS = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
+function openingHours(c) {
+  const hours = (c.calendar && c.calendar.hours) || [];
+  const ok = (t) => /^\d{2}:\d{2}$/.test(String(t || ''));
+  const out = hours
+    .filter((h) => DAYS[h.day] && ok(h.from) && ok(h.to))
+    .map((h) => ({ '@type': 'OpeningHoursSpecification', dayOfWeek: DAYS[h.day], opens: h.from, closes: h.to }));
+  return out.length ? out : undefined;
+}
+
+// "(512) 571-3425" → "+15125713425" (schema.org wants E.164 when it can get it).
+function e164(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits[0] === '1') return `+${digits}`;
+  return digits ? `+${digits}` : undefined;
+}
+
+// "Austin, TX" → { addressLocality, addressRegion }.
+function postalAddress(location) {
+  const [city, region] = String(location || '').split(',').map((s) => s.trim());
+  if (!city) return undefined;
+  return { '@type': 'PostalAddress', addressLocality: city, ...(region ? { addressRegion: region } : {}), addressCountry: 'US' };
 }
 
 function credentials(c) {
@@ -105,78 +171,51 @@ function readout(c, cities) {
   return `<dl class="decor decor--readout" aria-hidden="true">${rows.map(([k, v]) => `<div><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join('')}<div class="readout__cursor"><dt>&gt;</dt><dd><i></i></dd></div></dl>`;
 }
 
-function bookingForm(c, themeId, cities) {
-  const opts = c.services.items
-    .map((s) => `<option value="${e(s.title)}"${s.title_es ? ` data-es="${e(s.title_es)}"` : ''}>${e(s.title)}</option>`)
-    .join('');
-  const cityOpts = cities.map((x) => `<option value="${e(x.name)}">${e(x.name)}</option>`).join('');
-  const timeOpts = TIMES.map(([en, es]) => `<option value="${e(en)}" data-es="${e(es)}">${e(en)}</option>`).join('');
-  const tel = B.telHref(c.contact.phone);
-  return `<form class="form" id="bookform" name="booking" method="POST" action="/forms/booking.html" data-netlify="true" netlify-honeypot="bot-field">
-  <input type="hidden" name="form-name" value="booking">
-  <input type="hidden" name="lang" value="en" data-lang-field>
-  <input type="hidden" name="theme" value="${e(themeId)}">
-  <p class="form__hp" hidden aria-hidden="true"><label>Leave this empty <input name="bot-field" tabindex="-1" autocomplete="off"></label></p>
+// The hero's visual: a tachometer drawn in SVG, no photo (the client did not
+// want the Porsche photo leading the page). 0 to 8 (×1000 RPM) across
+// 240°, red zone from 6.5. Every part carries a class and takes its colour
+// from --g-* variables, so each look restyles the same drawing
+// (assets/site.css + assets/themes/*.css). The needle points right at rest
+// and is turned by CSS (--g-idle), so reduced-motion gets a still dial.
+const GAUGE = { cx: 200, cy: 200, from: 150, perUnit: 30, max: 8, redFrom: 6.5, r: 168 };
 
-  <fieldset class="form__group">
-    <legend><span class="form__step">01</span>${bi('span', 'You', 'Tú')}</legend>
-    <div class="form__row">
-      <label class="field">${bi('span', 'Name', 'Nombre')}<input name="name" type="text" required autocomplete="name" maxlength="80"></label>
-      <label class="field">${bi('span', 'Phone', 'Teléfono')}<input name="phone" type="tel" required autocomplete="tel" inputmode="tel" maxlength="24" placeholder="(512) 000-0000"></label>
-    </div>
-    <div class="form__row">
-      <label class="field">${bi('span', 'Email (for your confirmation)', 'Correo (para tu confirmación)')}<input name="email" type="email" autocomplete="email" inputmode="email" maxlength="120"></label>
-      <fieldset class="field field--choice">
-        <legend>${bi('span', 'How should I reach you?', '¿Cómo te contacto?')}</legend>
-        <label class="choice"><input type="radio" name="contact_pref" value="Text" checked>${bi('span', 'Text', 'Texto')}</label>
-        <label class="choice"><input type="radio" name="contact_pref" value="Call">${bi('span', 'Call', 'Llamada')}</label>
-      </fieldset>
-    </div>
-  </fieldset>
-
-  <fieldset class="form__group">
-    <legend><span class="form__step">02</span>${bi('span', 'Your car', 'Tu auto')}</legend>
-    <div class="form__row form__row--3">
-      <label class="field">${bi('span', 'Year', 'Año')}<input name="vehicle_year" type="text" inputmode="numeric" pattern="(19|20)[0-9]{2}" required maxlength="4" placeholder="2019"></label>
-      <label class="field">${bi('span', 'Make', 'Marca')}<input name="vehicle_make" type="text" list="makes" required maxlength="40" placeholder="Mercedes-Benz"></label>
-      <label class="field">${bi('span', 'Model', 'Modelo')}<input name="vehicle_model" type="text" required maxlength="40" placeholder="GLE 350"></label>
-    </div>
-    <div class="form__row">
-      <label class="field">${bi('span', 'Mileage (optional)', 'Millaje (opcional)')}<input name="mileage" type="text" inputmode="numeric" maxlength="9" placeholder="84,000"></label>
-      <label class="field">${bi('span', 'VIN (optional, 17 characters)', 'VIN (opcional, 17 caracteres)')}<input name="vin" type="text" maxlength="17" autocapitalize="characters" spellcheck="false" placeholder="WDC…"></label>
-    </div>
-    <datalist id="makes">${MAKES.map((m) => `<option value="${e(m)}">`).join('')}</datalist>
-  </fieldset>
-
-  <fieldset class="form__group">
-    <legend><span class="form__step">03</span>${bi('span', 'The problem', 'El problema')}</legend>
-    <label class="field">${bi('span', 'What do you need?', '¿Qué necesitas?')}<select name="service" required><option value="" data-es="Elige…">Choose…</option>${opts}<option value="Something else" data-es="Otra cosa">Something else</option></select></label>
-    <label class="field">${bi('span', 'What is the car doing?', '¿Qué está haciendo el auto?')}<textarea name="issue" rows="4" required maxlength="1500" placeholder="Noises, warning lights, when it happens…" data-es-ph="Ruidos, luces de advertencia, cuándo pasa…"></textarea></label>
-  </fieldset>
-
-  <fieldset class="form__group">
-    <legend><span class="form__step">04</span>${bi('span', 'Where and when', 'Dónde y cuándo')}</legend>
-    <div class="form__row">
-      <label class="field">${bi('span', 'Where is the car?', '¿Dónde está el auto?')}<input name="address" type="text" required maxlength="160" autocomplete="street-address" placeholder="Street address or business name" data-es-ph="Dirección o nombre del negocio"></label>
-      <label class="field">${bi('span', 'City', 'Ciudad')}<select name="city" required>${cityOpts}<option value="Other" data-es="Otra">Other</option></select></label>
-    </div>
-    <div class="form__row">
-      <label class="field">${bi('span', 'Preferred date', 'Fecha preferida')}<input name="preferred_date" type="date"></label>
-      <label class="field">${bi('span', 'Preferred time', 'Hora preferida')}<select name="preferred_time">${timeOpts}</select></label>
-    </div>
-  </fieldset>
-
-  <div class="form__actions">
-    <button class="btn btn--primary btn--lg form__submit" type="submit">${bi('span', 'Send booking request', 'Enviar solicitud')}</button>
-    ${c.booking.note ? bi('p', c.booking.note, c.booking.note_es, 'form__note') : ''}
-  </div>
-  <p class="form__status" role="status" aria-live="polite"></p>
-  <div class="form__done" hidden tabindex="-1">
-    <span class="form__check" aria-hidden="true"></span>
-    ${bi('h3', c.booking.success, c.booking.success_es)}
-    ${tel ? `<p>${bi('span', 'In a hurry?', '¿Tienes prisa?')} <a href="${e(tel)}">${e(c.contact.phone)}</a></p>` : ''}
-  </div>
-</form>`;
+function gauge() {
+  const { cx, cy, from, perUnit, max, redFrom, r } = GAUGE;
+  const n2 = (x) => Number(x.toFixed(2));
+  const at = (value, radius) => {
+    const a = ((from + value * perUnit) * Math.PI) / 180;
+    return [n2(cx + radius * Math.cos(a)), n2(cy + radius * Math.sin(a))];
+  };
+  const arc = (v0, v1, cls) => {
+    const [x0, y0] = at(v0, r), [x1, y1] = at(v1, r);
+    return `<path class="${cls}" d="M${x0} ${y0}A${r} ${r} 0 ${(v1 - v0) * perUnit > 180 ? 1 : 0} 1 ${x1} ${y1}"/>`;
+  };
+  const ticks = [];
+  for (let half = 0; half <= max * 2; half++) {
+    const v = half / 2, major = half % 2 === 0;
+    const [x0, y0] = at(v, major ? r - 20 : r - 11), [x1, y1] = at(v, r);
+    ticks.push(`<line class="gauge__tick${major ? ' gauge__tick--major' : ''}${v >= redFrom ? ' is-red' : ''}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`);
+  }
+  const nums = [];
+  for (let v = 0; v <= max; v++) {
+    const [x, y] = at(v, r - 42);
+    nums.push(`<text class="gauge__num${v >= redFrom ? ' is-red' : ''}" x="${x}" y="${y}">${v}</text>`);
+  }
+  return `<figure class="hero__media hero__gauge" aria-hidden="true">
+      <svg class="gauge" viewBox="0 0 400 400" focusable="false">
+        <circle class="gauge__bezel" cx="${cx}" cy="${cy}" r="190"/>
+        <circle class="gauge__face" cx="${cx}" cy="${cy}" r="181"/>
+        ${arc(0, max, 'gauge__track')}
+        ${arc(redFrom, max, 'gauge__red')}
+        ${ticks.join('')}
+        ${nums.join('')}
+        <text class="gauge__unit" x="${cx}" y="${cy + 62}">RPM ×1000</text>
+        <g class="gauge__needle"><path d="M${cx - 30} ${cy - 3.2}L${cx + 146} ${cy - 0.9}L${cx + 146} ${cy + 0.9}L${cx - 30} ${cy + 3.2}Z"/></g>
+        <circle class="gauge__hub" cx="${cx}" cy="${cy}" r="12"/>
+        <circle class="gauge__pin" cx="${cx}" cy="${cy}" r="4"/>
+      </svg>
+      <figcaption class="hero__cap"><span class="decor decor--plate">FIG. 01</span>${bi('span', 'Dealership-level diagnostics, in your driveway', 'Diagnóstico de nivel concesionario, en tu cochera')}</figcaption>
+    </figure>`;
 }
 
 function navLinks(nav) {
@@ -198,13 +237,16 @@ export function renderPage({ content, media, origin = '', url }) {
   const cities = c.area.cities.filter((x) => x.name);
   const v = e(config.assetVersion);
 
+  const faqItems = c.faq.items.filter((it) => it.q && it.a);
   const has = {
     creds: c.credentials.items.length > 0,
     services: c.services.items.length > 0,
     why: c.why.items.length > 0,
     area: Boolean(c.area.heading || cities.length),
     work: views.length > 0,
+    faq: faqItems.length > 0,
     book: true,
+    strip: Boolean(c.cta.strip),
   };
   const nav = config.nav.filter((n) => has[n.id] !== false);
   let n = 0;
@@ -218,17 +260,41 @@ export function renderPage({ content, media, origin = '', url }) {
 
   const jsonLd = B.jsonLd(c, origin, featured, {
     '@type': 'AutoRepair',
+    telephone: e164(c.contact.phone),
+    address: postalAddress(c.contact.location),
     areaServed: cities.map((x) => ({ '@type': 'City', name: x.name })),
+    openingHoursSpecification: openingHours(c),
+    hasOfferCatalog: c.services.items.length
+      ? {
+          '@type': 'OfferCatalog',
+          name: c.services.heading || 'Services',
+          itemListElement: c.services.items.filter((s) => s.title).map((s) => ({ '@type': 'Offer', itemOffered: { '@type': 'Service', name: s.title, ...(s.detail ? { description: s.detail } : {}) } })),
+        }
+      : undefined,
     sameAs: [ig, fb].filter(Boolean),
     knowsLanguage: ['en', 'es'],
     priceRange: '$$',
   });
+  const faqLd = has.faq
+    ? `<script type="application/ld+json">${B.jsonForScript({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqItems.map((it) => ({ '@type': 'Question', name: it.q, acceptedAnswer: { '@type': 'Answer', text: it.a } })),
+      })}</script>`
+    : '';
+  const headExtra = `<link rel="stylesheet" href="/assets/themes/${e(T.id)}.css?v=${v}">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="es_US">${featured && featured.alt ? `\n<meta property="og:image:alt" content="${e(featured.alt)}">` : ''}`;
+  // The wordmark stays the visual H1; the eyebrow rides inside it for screen
+  // readers and search ("Precision Fix — Austin, TX · Mobile Mechanic").
+  const h1Suffix = c.hero.eyebrow ? `<span class="sr"> — ${e(c.hero.eyebrow)}</span>` : '';
 
   return `<!DOCTYPE html>
 <html lang="en" data-theme="${e(T.id)}">
 <head>
-${B.headTags({ content: c, featured, origin, theme: T.palette, fonts: T.fonts, extra: `<link rel="stylesheet" href="/assets/themes/${e(T.id)}.css?v=${v}">` })}
+${B.headTags({ content: c, featured, origin, theme: T.palette, fonts: T.fonts, extra: headExtra })}
 ${jsonLd}
+${faqLd}
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -244,35 +310,29 @@ ${jsonLd}
     </div>
   </div>
 </header>
+<div class="menu__scrim" id="menuscrim" hidden></div>
 <div class="menu" id="menu" hidden>
   <nav aria-label="Sections">${navLinks(nav)}</nav>
-  <div class="menu__cta">${bookBtn('btn--lg')}${callBtn('btn--lg')}</div>
+  ${tel ? `<div class="menu__cta"><a class="btn btn--ghost" href="${e(tel)}">${B.ICONS.phone}${bi('span', 'Call', 'Llamar')}</a>${sms ? `<a class="btn btn--ghost" href="${e(sms)}">${B.ICONS.message}${bi('span', 'Text', 'Texto')}</a>` : ''}</div>` : ''}
 </div>
 
 <main id="main">
 <section class="hero" id="top">
   <div class="hero__bg" aria-hidden="true">
-    ${featured ? B.img(featured, { cls: 'hero__img', sizes: '100vw', eager: true, alt: '' }) : ''}
     <div class="hero__veil"></div>
     <div class="hero__fx"><i></i><i></i><i></i></div>
   </div>
   <div class="wrap hero__grid">
     <div class="hero__copy">
       ${c.hero.eyebrow ? bi('p', c.hero.eyebrow, c.hero.eyebrow_es, 'eyebrow hero__eyebrow') : ''}
-      <h1 class="hero__title">${heroTitle(c.hero.headline || c.brand.name)}</h1>
+      <h1 class="hero__title">${heroTitle(c.hero.headline || c.brand.name)}${h1Suffix}</h1>
       ${c.hero.subhead ? bi('p', c.hero.subhead, c.hero.subhead_es, 'hero__sub') : ''}
       <div class="hero__cta">${bookBtn('btn--lg')}${callBtn('btn--lg')}</div>
+      ${dots(c.hero.trust, c.hero.trust_es, 'hero__trust')}
       ${c.hero.badge ? bi('p', c.hero.badge, c.hero.badge_es, 'hero__badge') : ''}
       <ul class="decor decor--stickers" aria-hidden="true"><li>${e(c.contact.location || 'Austin, TX')}</li><li>EN · ES</li><li data-es="Voy a ti">I come to you</li></ul>
     </div>
-    ${
-      featured
-        ? `<figure class="hero__media reveal">
-      ${B.img(featured, { cls: 'hero__photo', sizes: '(min-width: 900px) 50vw, 100vw', eager: true })}
-      <figcaption class="hero__cap"><span class="decor decor--plate">FIG. 01</span>${e(featured.caption || featured.alt)}</figcaption>
-    </figure>`
-        : ''
-    }
+    ${gauge()}
     ${readout(c, cities)}
   </div>
   <p class="hero__scroll" aria-hidden="true"><span data-es="Desliza">Scroll</span><i></i></p>
@@ -331,6 +391,19 @@ ${
 }
 
 ${
+  has.strip
+    ? `<section class="cta cta--strip" aria-label="${e(c.booking.heading || 'Book a visit')}">
+  <div class="wrap">
+    <a class="cta__strip reveal" href="#book">
+      <span class="cta__strip-text"${c.cta.strip_es ? ` data-es="${mark(c.cta.strip_es)}"` : ''}>${mark(c.cta.strip)}</span>
+      <span class="btn btn--primary">${bi('span', c.cta.strip_button || c.hero.cta_primary || 'Book a visit', c.cta.strip_button_es || c.hero.cta_primary_es)}</span>
+    </a>
+  </div>
+</section>`
+    : ''
+}
+
+${
   has.area
     ? `<section class="section area" id="area">
   <div class="wrap area__inner">
@@ -341,6 +414,17 @@ ${
     </header>
     ${cities.length ? `<ul class="area__tags reveal">${cities.map((x, i) => `<li style="--d:${i * 40}ms">${e(x.name)}</li>`).join('')}</ul>` : ''}
     <div class="decor decor--radar" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+  </div>
+</section>`
+    : ''
+}
+
+${
+  has.faq
+    ? `<section class="section faq" id="faq">
+  <div class="wrap faq__inner">
+    <header class="section__head reveal"><p class="eyebrow">${num()}</p>${bi('h2', c.faq.heading, c.faq.heading_es)}</header>
+    <div class="faq__list">${faq(c)}</div>
   </div>
 </section>`
     : ''
@@ -371,8 +455,9 @@ ${
           ${review ? `<div><dt>Google</dt><dd><a href="${e(review)}" rel="noopener" target="_blank" data-es="Deja una reseña">Leave a review</a></dd></div>` : ''}
         </dl>
       </div>
+      ${steps(c)}
     </div>
-    <div class="book__form reveal">${bookingForm(c, T.id, cities)}</div>
+    <div class="book__form reveal">${B.bookingBlock({ content: c, success: c.booking.success, success_es: c.booking.success_es, note: c.booking.note, note_es: c.booking.note_es })}</div>
   </div>
 </section>
 </main>

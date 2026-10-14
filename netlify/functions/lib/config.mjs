@@ -34,6 +34,130 @@ export function normalizeThemes(t, palette = {}) {
   return { field: String(t.field), options };
 }
 
+const KEY_RE = /^[a-z][a-z0-9_]*$/;
+const INTAKE_TYPES = new Set(['text', 'tel', 'email', 'number', 'textarea', 'select']);
+const LOCATION_KINDS = new Set(['at_customer', 'at_owner', 'remote']);
+const CONTACT_PREFS = ['text', 'call', 'email'];
+
+function validTz(tz) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+// One intake field the customer fills after picking a time (site/booking.mjs).
+// Lists of fields may also be a function of the content document, resolved
+// at render / validation time (intakeFor()).
+export function normalizeIntakeField(f) {
+  if (!f || !KEY_RE.test(String(f.key || '')) || !f.label) return null;
+  const type = INTAKE_TYPES.has(f.type) ? f.type : 'text';
+  const options = type === 'select'
+    ? (Array.isArray(f.options) ? f.options : []).map((o) => (typeof o === 'string' ? { value: o, label: o, label_es: '' } : { value: String(o.value), label: String(o.label || o.value), label_es: String(o.label_es || '') })).filter((o) => o.value)
+    : [];
+  if (type === 'select' && !options.length) return null;
+  return {
+    key: String(f.key),
+    label: String(f.label),
+    label_es: String(f.label_es || ''),
+    type,
+    required: Boolean(f.required),
+    max: Math.min(2000, Math.max(1, Number(f.max) || (type === 'textarea' ? 1500 : 120))),
+    options,
+    placeholder: String(f.placeholder || ''),
+    placeholder_es: String(f.placeholder_es || ''),
+    inputmode: String(f.inputmode || ''),
+    pattern: String(f.pattern || ''),
+    autocomplete: String(f.autocomplete || ''),
+    datalist: Array.isArray(f.datalist) ? f.datalist.map(String).slice(0, 60) : [],
+    transform: f.transform === 'upper' ? 'upper' : '',
+    wide: Boolean(f.wide),
+  };
+}
+
+// The booking calendar (lib/booking.mjs). null when absent. `external` mode
+// is passed through untouched (the owner's booking_url keeps working) and
+// enables none of the calendar machinery: use BOOKING for that.
+export function normalizeBooking(b) {
+  if (!b || typeof b !== 'object') return null;
+  const mode = b.mode === 'external' ? 'external' : 'request';
+  if (mode === 'external') return { mode, embed: b.embed || null };
+  const tz = String(b.tz || 'America/Chicago');
+  must(validTz(tz), `booking.tz ${JSON.stringify(tz)} is not a valid IANA timezone`);
+  const listOrFn = (v, name) => {
+    if (typeof v === 'function' || Array.isArray(v)) return v;
+    if (v === undefined) return [];
+    must(false, `booking.${name} must be an array or a function of the content document`);
+  };
+  const loc = b.location && typeof b.location === 'object' ? b.location : {};
+  const notes = b.notes && typeof b.notes === 'object' ? b.notes : {};
+  const contact = (Array.isArray(b.contact) ? b.contact : CONTACT_PREFS).map(String).filter((c) => CONTACT_PREFS.includes(c));
+  return {
+    mode,
+    tz,
+    services: listOrFn(b.services, 'services'),
+    intake: listOrFn(b.intake, 'intake'),
+    location: {
+      kind: LOCATION_KINDS.has(loc.kind) ? loc.kind : 'at_customer',
+      address: loc.address === undefined ? true : Boolean(loc.address),
+      cities: listOrFn(loc.cities, 'location.cities'),
+    },
+    notes: {
+      label: String(notes.label || 'Anything we should know?'),
+      label_es: String(notes.label_es || '¿Algo que debamos saber?'),
+      required: Boolean(notes.required),
+      max: Math.min(2000, Math.max(1, Number(notes.max) || 1500)),
+      placeholder: String(notes.placeholder || ''),
+      placeholder_es: String(notes.placeholder_es || ''),
+    },
+    contact: contact.length ? [...new Set(contact)] : [...CONTACT_PREFS],
+    notify: (Array.isArray(b.notify) ? b.notify : []).map((s) => String(s).trim().toLowerCase()).filter(Boolean),
+    defaults: b.defaults && typeof b.defaults === 'object' ? b.defaults : {},
+    deposit: normalizeDeposit(b.deposit),
+    pricing: normalizePricing(b.pricing),
+  };
+}
+
+// booking.pricing: what the form says above "Request this time" besides the
+// deposit (lib/booking-pricing.mjs). null = nothing stated.
+//   { hourly: 15000, surcharge: 2000, currency: 'usd' }   integer cents
+export function normalizePricing(p) {
+  if (!p || typeof p !== 'object') return null;
+  const cents = (v, name) => {
+    if (v === undefined || v === null || v === 0) return 0;
+    must(Number.isInteger(v) && v > 0 && v <= 100000000, `booking.pricing.${name} must be an integer in minor units (cents)`);
+    return v;
+  };
+  const hourly = cents(p.hourly, 'hourly');
+  const surcharge = cents(p.surcharge, 'surcharge');
+  const currency = String(p.currency || 'usd').toLowerCase();
+  must(/^[a-z]{3}$/.test(currency), 'booking.pricing.currency must be a 3-letter ISO code');
+  return hourly || surcharge ? { hourly, surcharge, currency } : null;
+}
+
+// booking.deposit: a deposit the customer pays through Stripe Checkout once
+// the owner confirms (lib/stripe.mjs, lib/booking-deposit.mjs). null = none.
+//   { amount: 5000, currency: 'usd', hold_hours: 24, credited: true }
+//   amount      integer minor units (cents); 50 dollars = 5000
+//   hold_hours  how long a confirmed time is held for payment before the owner is nudged
+//   credited    true: the deposit comes off the final bill (the emails say so)
+// Keys: <PREFIX>_STRIPE_SECRET_KEY + <PREFIX>_STRIPE_WEBHOOK_SECRET (siteEnv).
+export function normalizeDeposit(d) {
+  if (!d || typeof d !== 'object') return null;
+  const amount = Math.round(Number(d.amount));
+  must(Number.isInteger(amount) && amount >= 50 && amount <= 100000000, 'booking.deposit.amount must be an integer in minor units (cents), 50 … 100000000');
+  const currency = String(d.currency || 'usd').toLowerCase();
+  must(/^[a-z]{3}$/.test(currency), 'booking.deposit.currency must be a 3-letter ISO code');
+  return {
+    amount,
+    currency,
+    holdHours: Math.min(24 * 14, Math.max(1, Number(d.hold_hours) || 24)),
+    credited: d.credited === undefined ? true : Boolean(d.credited),
+  };
+}
+
 export function normalizeConfig(c) {
   must(c && typeof c === 'object', 'must export an object');
   must(/^[a-z0-9][a-z0-9-]{1,48}$/.test(c.slug || ''), 'slug must be lowercase [a-z0-9-], 2-49 chars');
@@ -64,12 +188,15 @@ export function normalizeConfig(c) {
     forms: c.forms && typeof c.forms === 'object' ? c.forms : null,
     // Looks picker in /admin/ (see normalizeThemes above). null = no picker.
     themes: normalizeThemes(c.themes, c.theme),
+    // Booking calendar (see normalizeBooking above). null = none.
+    booking: normalizeBooking(c.booking),
     tables: {
       editors: `${dbPrefix}_editors`,
       login_tokens: `${dbPrefix}_login_tokens`,
       content: `${dbPrefix}_content`,
       media: `${dbPrefix}_media`,
       revisions: `${dbPrefix}_revisions`,
+      bookings: `${dbPrefix}_bookings`,
     },
     bucket: slug,
     cacheTag: slug,
@@ -80,6 +207,14 @@ export function normalizeConfig(c) {
 export const config = normalizeConfig(raw);
 export const TABLES = config.tables;
 export const BUCKET = config.bucket;
+// The booking calendar in request mode, or null (absent / external mode).
+export const BOOKING = config.booking && config.booking.mode === 'request' ? config.booking : null;
+
+// Resolves a config list that may be a function of the content document.
+export function resolveList(v, content) {
+  const out = typeof v === 'function' ? v(content) : v;
+  return Array.isArray(out) ? out : [];
+}
 
 // Site-scoped env var: env('SESSION_SECRET') → process.env.<PREFIX>_SESSION_SECRET
 export function siteEnv(key) {

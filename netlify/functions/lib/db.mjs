@@ -50,8 +50,12 @@ export async function sb(path, { method = 'GET', body, prefer } = {}) {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
+    // Always a 500 to the caller: a database 4xx (missing column, unknown
+    // table) carries the query, column names and hints, and handleError()
+    // passes 4xx messages through. The real status stays on dbStatus for logs.
     const err = new Error(`supabase ${method} ${path} → ${res.status}: ${detail.slice(0, 300)}`);
-    err.status = res.status;
+    err.status = 500;
+    err.dbStatus = res.status;
     throw err;
   }
   if (res.status === 204) return null;

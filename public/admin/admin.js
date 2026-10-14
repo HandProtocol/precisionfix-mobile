@@ -7,7 +7,7 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || d).querySelectorAll(s)); };
   var DRAFT_KEY = 'site-draft-v1';
 
-  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0 };
+  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0, bookings: null };
 
   // ---------------------------------------------------------------- utils --
   function h(tag, attrs, children) {
@@ -23,10 +23,11 @@
     (children || []).forEach(function (c) { if (c == null) return; el.appendChild(typeof c === 'string' ? d.createTextNode(c) : c); });
     return el;
   }
-  function toast(msg, kind) {
-    var t = h('div', { class: 'toast ' + (kind || ''), text: msg });
+  // link: optional { href, label } (e.g. "Text Ana" when no email went out); such a toast stays longer.
+  function toast(msg, kind, link) {
+    var t = h('div', { class: 'toast ' + (kind || '') }, [msg, link && link.href ? h('a', { class: 'toast__link', href: link.href, text: link.label }) : null]);
     $('#toasts').appendChild(t);
-    setTimeout(function () { t.style.opacity = '0'; t.style.transition = 'opacity .4s'; setTimeout(function () { t.remove(); }, 400); }, 3200);
+    setTimeout(function () { t.style.opacity = '0'; t.style.transition = 'opacity .4s'; setTimeout(function () { t.remove(); }, 400); }, link && link.href ? 12000 : 3200);
   }
   async function api(method, path, body) {
     var res = await fetch(path, {
@@ -69,10 +70,12 @@
     } catch (_) {}
   }
   function setTab(name) {
+    if (!$('[data-tab="' + name + '"]')) name = 'content';
     $$('.tab').forEach(function (t) { t.classList.toggle('is-active', t.dataset.tab === name); });
-    ['content', 'media', 'editors', 'history', 'setup'].forEach(function (p) { var el = $('#panel-' + p); if (el) el.hidden = p !== name; });
+    ['content', 'media', 'editors', 'history', 'setup', 'bookings'].forEach(function (p) { var el = $('#panel-' + p); if (el) el.hidden = p !== name; });
     if (name === 'editors') loadEditors();
     if (name === 'history') loadHistory();
+    if (name === 'bookings') loadBookings();
     if (name === 'setup') { var nxt = $('#setuplist .task:not(.is-done):not([data-later])'); if (nxt) setTimeout(function () { nxt.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
   }
   $$('.tab').forEach(function (t) { t.addEventListener('click', function () { setTab(t.dataset.tab); }); });
@@ -110,7 +113,20 @@
       try { state.editor = (await api('GET', '/api/auth/me')).editor; } catch (_) { showLogin(); return; }
     }
     await loadSite();
+    await loadBookingSummary();
     showShell();
+    landFromLink();
+  }
+  // Arriving from an email link (/admin/?toast=confirmed&booking=<id>#bookings).
+  function landFromLink() {
+    var params = new URLSearchParams(location.search), t = params.get('toast');
+    var hash = location.hash;
+    if (t || hash === '#bookings') history.replaceState(null, '', '/admin/' + (hash === '#bookings' ? '#bookings' : ''));
+    if (hash === '#bookings' && $('[data-tab="bookings"]')) { setTab('bookings'); if (params.get('booking')) state.bookingFlash = params.get('booking'); }
+    var MSG = { confirmed: ['Confirmed.', 'ok'], declined: ['Declined.', 'ok'], 'link-used': ['That link was already used. The request is below.', ''], 'link-expired': ['That link expired. Confirm from the list below.', 'bad'], 'link-invalid': ['That link is not valid.', 'bad'] };
+    if (!t) return;
+    var m = MSG[t] || (t.indexOf('already-') === 0 ? ['That request is already ' + t.slice(8).replace('_', ' ') + '.', ''] : null);
+    if (m) toast(m[0], m[1]);
   }
 
   // ------------------------------------------------------------- content --
@@ -137,6 +153,7 @@
     if (kind === 'value') return String(val) === (task.getAttribute('data-check-value') || '');
     if (kind === 'media') return state.media.some(function (m) { return !m.is_placeholder; });
     if (kind === 'host') return !/\.netlify\.app$/i.test(location.hostname) && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+    if (kind === 'booking') return Boolean(state.bookings && state.bookings.self_test);
     return false;
   }
   function renderSetup() {
@@ -169,12 +186,17 @@
     orderSetupTab(left);
     syncLooks();
   }
-  // Setup goes first in the tab bar while there is work left, last when done.
+  // Setup goes first in the tab bar while there is work left, last when done;
+  // Bookings jumps ahead of everything while requests are waiting.
   function orderSetupTab(left) {
-    var tab = $('[data-tab="setup"]'); if (!tab) return;
-    var nav = tab.parentNode;
-    if (left && nav.firstElementChild !== tab) nav.insertBefore(tab, nav.firstElementChild);
-    if (!left && nav.lastElementChild !== tab) nav.appendChild(tab);
+    var tab = $('[data-tab="setup"]');
+    if (tab) {
+      var nav = tab.parentNode;
+      if (left && nav.firstElementChild !== tab) nav.insertBefore(tab, nav.firstElementChild);
+      if (!left && nav.lastElementChild !== tab) nav.appendChild(tab);
+    }
+    var bk = $('[data-tab="bookings"]');
+    if (bk && state.bookings && state.bookings.requested && bk.parentNode.firstElementChild !== bk) bk.parentNode.insertBefore(bk, bk.parentNode.firstElementChild);
   }
   async function setTaskDone(id, on) {
     var set = {}; set['setup.' + id] = on;
@@ -211,7 +233,7 @@
       var el = fld || sec;
       el.scrollIntoView({ behavior: 'smooth', block: fld ? 'center' : 'start' });
       flash(el);
-      if (fld) { var inp = $('input,textarea,select', fld); if (inp) setTimeout(function () { inp.focus({ preventScroll: true }); }, 450); }
+      if (fld) { var inp = $('input,textarea,select', fld) || $('button', fld); if (inp) setTimeout(function () { inp.focus({ preventScroll: true }); }, 450); }
       return;
     }
     if (kind === 'site') { window.open(new URL(target, location.origin + '/').href, '_blank', 'noopener'); return; } // root-relative: never /admin/#hash
@@ -326,7 +348,7 @@
       input.addEventListener('change', function () { onChange(input.value); });
       wrap.appendChild(input);
     } else {
-      input = field.type === 'textarea' ? h('textarea', { maxlength: field.max }) : h('input', { type: 'text', maxlength: field.max });
+      input = field.type === 'textarea' ? h('textarea', { maxlength: field.max }) : h('input', { type: field.ui === 'date' ? 'date' : 'text', maxlength: field.max });
       input.value = value || '';
       input.addEventListener('input', function () { counter.textContent = input.value.length + '/' + field.max; onChange(input.value); });
       wrap.appendChild(input);
@@ -337,6 +359,7 @@
 
   function listEl(field, sectionKey) {
     var box = h('div', { class: 'listfield' });
+    box.dataset.path = sectionKey + '.' + field.key;
     function render() {
       box.innerHTML = '';
       var rows = state.content[sectionKey][field.key];
@@ -612,6 +635,241 @@
         ]));
       });
     } catch (err) { toast(err.message, 'bad'); }
+  }
+
+
+  // ------------------------------------------------------------ bookings --
+  // The Bookings tab (config.booking): requested inbox, confirmed by day,
+  // past, declined. Every button is one tap; the customer is emailed by the
+  // server on confirm / another time / decline / cancel.
+  var BK = { data: null, day: '' };
+  var bkPanel = $('#panel-bookings');
+  async function loadBookingSummary() {
+    if (!bkPanel) return;
+    try { state.bookings = await api('GET', '/api/admin/bookings/summary'); } catch (_) { state.bookings = null; }
+    var pill = $('#bookingcount'); if (pill) pill.textContent = state.bookings && state.bookings.requested ? String(state.bookings.requested) : '';
+    orderSetupTab(state.setupOpen);
+  }
+  function bkTz() { return (BK.data && BK.data.tz) || undefined; }
+  function bkDate(iso) { try { return new Intl.DateTimeFormat('en-CA', { timeZone: bkTz(), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso)); } catch (_) { return String(iso).slice(0, 10); } }
+  function bkDay(iso, long) { try { return new Date(iso).toLocaleDateString(undefined, { timeZone: bkTz(), weekday: long ? 'long' : 'short', month: long ? 'long' : 'short', day: 'numeric' }); } catch (_) { return iso; } }
+  function bkTime(iso) { try { return new Date(iso).toLocaleTimeString(undefined, { timeZone: bkTz(), hour: 'numeric', minute: '2-digit' }); } catch (_) { return iso; } }
+  function bkWhen(b) { var r = bkTime(b.starts_at) + ' to ' + bkTime(b.ends_at); return bkDay(b.starts_at) + ' · ' + (b.window ? b.window + ' (' + r + ')' : r); }
+  function bkAge(iso) {
+    var m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (m < 60) return m + ' min ago';
+    if (m < 60 * 36) return Math.round(m / 60) + ' h ago';
+    return Math.round(m / 1440) + ' d ago';
+  }
+  async function loadBookings() {
+    if (!bkPanel) return;
+    try { BK.data = await api('GET', '/api/admin/bookings'); } catch (err) { toast(err.message, 'bad'); return; }
+    state.bookings = { requested: BK.data.requested.length, self_test: state.bookings ? state.bookings.self_test : false };
+    var pill = $('#bookingcount'); if (pill) pill.textContent = BK.data.requested.length ? String(BK.data.requested.length) : '';
+    renderBookings();
+    bkNotify(BK.data.notify, BK.data.deposit);
+    bkFillAdd();
+    if (state.bookingFlash) { var card = $('.bk[data-id="' + state.bookingFlash + '"]', bkPanel); state.bookingFlash = ''; if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); flash(card); } }
+    loadFeedLink();
+  }
+  // Who the request mails go to (the server's resolved list), so a wrong inbox shows at a glance.
+  function bkNotify(list, deposit) {
+    var p = $('#bknotify'); if (!p || !Array.isArray(list)) return;
+    p.hidden = false;
+    p.className = 'muted bk-notify' + (list.length ? '' : ' is-bad');
+    p.textContent = list.length ? 'Requests are emailed to: ' + list.join(', ') : 'Requests are emailed to nobody yet. Ask HAND to set the booking email for this site.';
+    // the deposit: what is asked on confirm, and whether Stripe is wired yet
+    if (deposit) p.textContent += ' · Deposit on confirm: ' + bkMoney(deposit.amount, deposit.currency) + (deposit.enabled ? ' through Stripe, held ' + deposit.holdHours + ' h.' : '. Stripe is not connected yet, so nobody is asked for it until the keys are in.');
+  }
+  // "Add to my phone's calendar": a webcal: link the phone subscribes to in one tap.
+  var feedLoaded = false;
+  async function loadFeedLink() {
+    var a = $('#bkfeed'); if (!a || feedLoaded) return;
+    try { var r = await api('GET', '/api/admin/bookings/feed'); a.href = r.webcal; a.hidden = false; feedLoaded = true; a.addEventListener('click', function () { setTimeout(function () { toast('If nothing opened, copy the link: ' + r.url, ''); }, 1500); }); } catch (_) {}
+  }
+  function renderBookings() {
+    var d = BK.data, today = d.today;
+    // month strip: every day from today to the horizon, with counts
+    var strip = $('#bkstrip'); strip.innerHTML = '';
+    var off = {}; (d.settings.blackouts || []).forEach(function (x) { off[x] = 1; });
+    var cur = today, last = d.to, month = '';
+    for (var i = 0; i < 70 && cur <= last; i++) {
+      var m = cur.slice(0, 7);
+      if (m !== month) { month = m; strip.appendChild(h('span', { class: 'bk-strip__m', text: new Date(cur + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', timeZone: 'UTC' }) })); }
+      var c = d.counts[cur] || { requested: 0, confirmed: 0 };
+      (function (date, c) {
+        strip.appendChild(h('button', { type: 'button', class: 'bk-day' + (date === today ? ' is-today' : '') + (date === BK.day ? ' is-active' : '') + (off[date] ? ' is-off' : ''), 'data-req': c.requested, 'data-conf': c.confirmed, title: c.requested + ' requested, ' + c.confirmed + ' confirmed', onclick: function () { BK.day = BK.day === date ? '' : date; renderBookings(); } }, [
+          h('small', { text: new Date(date + 'T12:00:00Z').toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' }) }),
+          h('b', { text: String(Number(date.slice(8))) }),
+          h('i'),
+        ]));
+      })(cur, c);
+      cur = new Date(Date.UTC(Number(cur.slice(0, 4)), Number(cur.slice(5, 7)) - 1, Number(cur.slice(8)) + 1)).toISOString().slice(0, 10);
+    }
+    var range = d.range.filter(function (b) { return !BK.day || bkDate(b.starts_at) === BK.day; });
+    var requested = d.requested.filter(function (b) { return !BK.day || bkDate(b.starts_at) === BK.day; });
+    fillList('#bkrequested', requested, 'No requests waiting.' + (BK.day ? ' (filtered to one day)' : ''), false);
+    var confirmed = range.filter(function (b) { return b.status === 'confirmed' && b.ends_at >= new Date(Date.now() - 6 * 3600 * 1000).toISOString(); }).sort(function (a, b) { return a.starts_at < b.starts_at ? -1 : 1; });
+    fillList('#bkconfirmed', confirmed, 'Nothing confirmed yet.', true);
+    var past = range.filter(function (b) { return b.status === 'completed' || b.status === 'no_show' || (b.status === 'confirmed' && b.ends_at < new Date(Date.now() - 6 * 3600 * 1000).toISOString()); }).sort(function (a, b) { return a.starts_at > b.starts_at ? -1 : 1; });
+    fillList('#bkpast', past, 'Nothing yet.', true);
+    var closed = range.filter(function (b) { return b.status === 'declined' || b.status === 'cancelled'; }).sort(function (a, b) { return a.updated_at > b.updated_at ? -1 : 1; });
+    fillList('#bkclosed', closed, 'Nothing here.', false);
+  }
+  function fillList(sel, list, empty, byDay) {
+    var box = $(sel), out = $('[data-list]', box); out.innerHTML = '';
+    $('[data-count]', box).textContent = list.length ? String(list.length) : '';
+    if (!list.length) { out.appendChild(h('p', { class: 'bk__empty', text: empty })); return; }
+    var day = '';
+    list.forEach(function (b) {
+      if (byDay) { var dd = bkDate(b.starts_at); if (dd !== day) { day = dd; out.appendChild(h('p', { class: 'bk-day-h', text: (dd === BK.data.today ? 'Today · ' : '') + bkDay(b.starts_at, true) })); } }
+      out.appendChild(bkCard(b));
+    });
+  }
+  function bkCard(b) {
+    var d = BK.data, ov = d.overlap[b.id] || { requested: 0, confirmed: [] };
+    var card = h('article', { class: 'bk', 'data-id': b.id });
+    card.appendChild(h('div', { class: 'bk__head' }, [
+      h('strong', { text: b.name }), h('span', { class: 'muted', text: b.service_label }),
+      h('span', { class: 'bk__status bk__status--' + b.status, text: b.status.replace('_', ' ') }),
+      h('span', { class: 'bk__age', text: (b.source === 'owner' ? 'added by you · ' : '') + bkAge(b.created_at) }),
+    ]));
+    var when = h('p', { class: 'bk__when', text: bkWhen(b) });
+    if (b.requested_starts_at && b.requested_starts_at !== b.starts_at) when.appendChild(h('small', { text: 'asked for ' + bkWhen({ starts_at: b.requested_starts_at, ends_at: b.requested_ends_at, window: '' }) }));
+    card.appendChild(when);
+    var chips = [];
+    if (ov.requested) chips.push(h('span', { class: 'bk__chip bk__chip--warn', text: ov.requested + ' other' + (ov.requested === 1 ? '' : 's') + ' asked for this time' }));
+    (ov.confirmed || []).forEach(function (c) { chips.push(h('span', { class: 'bk__chip bk__chip--ok', text: 'Confirmed then: ' + c.name + ' ' + bkTime(c.starts_at) })); });
+    var dayCount = d.counts[bkDate(b.starts_at)] || { confirmed: 0 };
+    if (d.settings.maxPerDay && b.status === 'requested' && dayCount.confirmed >= d.settings.maxPerDay) chips.push(h('span', { class: 'bk__chip bk__chip--warn', text: 'Already ' + dayCount.confirmed + ' confirmed that day (your limit is ' + d.settings.maxPerDay + ')' }));
+    if (b.lang === 'es') chips.push(h('span', { class: 'bk__chip', text: 'Speaks Spanish' }));
+    // the deposit: due (with the hold), overdue, paid, refunded, kept
+    var dep = b.deposit_status || 'none';
+    if (dep !== 'none') {
+      var amt = bkMoney(b.deposit_amount, b.deposit_currency), overdue = dep === 'due' && b.deposit_due_by && new Date(b.deposit_due_by).getTime() < Date.now();
+      var label = dep === 'due' ? (overdue ? 'Deposit ' + amt + ' overdue' : 'Deposit ' + amt + ' due' + (b.deposit_due_by ? ' · held until ' + bkDay(b.deposit_due_by) + ' ' + bkTime(b.deposit_due_by) : ''))
+        : dep === 'paid' ? 'Deposit ' + amt + ' paid' + (b.deposit_payment_intent ? '' : ' (in person)')
+        : dep === 'refunded' ? 'Deposit ' + amt + ' refunded' : 'Deposit ' + amt + ' kept';
+      chips.push(h('span', { class: 'bk__chip ' + (dep === 'paid' ? 'bk__chip--ok' : overdue ? 'bk__chip--warn' : ''), text: label }));
+    }
+    if (chips.length) card.appendChild(h('div', { class: 'bk__chips' }, chips));
+    var meta = h('dl', { class: 'bk__meta' });
+    var row = function (k, v) { if (!v) return; meta.appendChild(h('dt', { text: k })); meta.appendChild(h('dd', { text: v })); };
+    row('Where', [b.address, b.city].filter(Boolean).join(', '));
+    (d.intake || []).forEach(function (f) { var v = b.intake && b.intake[f.key]; if (!v) return; var o = (f.options || []).filter(function (x) { return x.value === v; })[0]; row(f.label, o ? o.label : v); });
+    row('Notes', b.notes);
+    row('VIN', b.vin);
+    row('Car', b.car_model);
+    row('What they noticed', b.issues);
+    if (b.self_report_ack) row('Notice', 'Agreed to the self-report notice (' + (b.self_report_notice || 'self-report-2026-10-14') + ')');
+    row('Reach by', b.contact_pref + (b.email ? ' · ' + b.email : ''));
+    if (b.decline_reason) row(b.status === 'declined' ? 'Declined' : 'Reason', b.decline_reason);
+    card.appendChild(meta);
+    if (b.owner_note) card.appendChild(h('p', { class: 'bk__note', text: b.owner_note }));
+    var digits = String(b.phone || '').replace(/[^\d+]/g, '');
+    var links = h('div', { class: 'bk__links' }, [
+      digits ? h('a', { class: 'btn btn--ghost btn--sm', href: 'tel:' + digits, text: '📞 ' + b.phone }) : null,
+      digits ? h('a', { class: 'btn btn--ghost btn--sm', href: 'sms:' + digits, text: '💬 Text' }) : null,
+      b.email ? h('a', { class: 'btn btn--ghost btn--sm', href: 'mailto:' + b.email, text: '✉️ Email' }) : null,
+    ]);
+    if (links.children.length) card.appendChild(links);
+    var panel = h('div', { class: 'bk__panel', hidden: true });
+    var actions = h('div', { class: 'bk__actions' });
+    var btn = function (label, cls, fn) { return h('button', { class: 'btn btn--sm ' + cls, type: 'button', text: label, onclick: fn }); };
+    var act = async function (action, opts, el) {
+      if (el) el.disabled = true;
+      // r.message is worded by the server from what really happened to the customer mail
+      try { var r = await api('PATCH', '/api/admin/bookings/' + b.id, Object.assign({ action: action }, opts || {})); toast(r.message || 'Saved.', r.emailed === false && r.email_reason !== 'none' ? '' : 'ok', r.sms ? { href: r.sms, label: 'Text ' + b.name } : null); await loadBookings(); await loadBookingSummary(); }
+      catch (err) { toast(err.message, 'bad'); if (el) el.disabled = false; }
+    };
+    var openPanel = function (kind) {
+      panel.innerHTML = ''; panel.hidden = false;
+      if (kind === 'time') {
+        var startDate = bkDate(b.starts_at), startTime = bkTime24(b.starts_at), dur = Math.round((new Date(b.ends_at) - new Date(b.starts_at)) / 60000);
+        var dateIn = h('input', { type: 'date', value: startDate, min: BK.data.today });
+        var timeSel = h('select', { html: $('#bkadd [name=time]').innerHTML }); timeSel.value = nearestHalf(startTime);
+        var durSel = h('select', { html: $('#bkadd [name=duration]').innerHTML }); durSel.value = String([30, 45, 60, 90, 120, 180, 240, 480].filter(function (x) { return x >= dur; })[0] || 480);
+        panel.appendChild(h('div', { class: 'grid2' }, [h('label', { class: 'field' }, [h('span', { text: 'Day' }), dateIn]), h('label', { class: 'field' }, [h('span', { text: 'Start' }), timeSel]), h('label', { class: 'field' }, [h('span', { text: 'How long' }), durSel])]));
+        panel.appendChild(h('div', { class: 'row' }, [btn(b.status === 'requested' ? 'Confirm at this time' : 'Move it', 'btn--primary', function (e) { act('reschedule', { date: dateIn.value, time: timeSel.value, duration: Number(durSel.value) }, e.target); }), btn('Close', 'btn--ghost', function () { panel.hidden = true; })]));
+      }
+      if (kind === 'decline' || kind === 'cancel') {
+        var reason = h('input', { type: 'text', maxlength: 300, placeholder: kind === 'decline' ? 'Reason (optional, goes to the customer)' : 'Reason (optional, goes to the customer)' });
+        panel.appendChild(h('label', { class: 'field' }, [h('span', { text: kind === 'decline' ? 'Decline this request' : 'Cancel this booking' }), reason]));
+        panel.appendChild(h('div', { class: 'row' }, [btn(kind === 'decline' ? 'Decline' : 'Cancel the booking', 'btn--primary btn--danger', function (e) { act(kind, { reason: reason.value }, e.target); }), btn('Keep it', 'btn--ghost', function () { panel.hidden = true; })]));
+      }
+      if (kind === 'note') {
+        var ta = h('textarea', { maxlength: 1000 }); ta.value = b.owner_note || '';
+        panel.appendChild(h('label', { class: 'field' }, [h('span', { text: 'Note (only you see it)' }), ta]));
+        panel.appendChild(h('div', { class: 'row' }, [btn('Save note', 'btn--primary', function (e) { act('note', { note: ta.value }, e.target); }), btn('Close', 'btn--ghost', function () { panel.hidden = true; })]));
+      }
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    if (b.status === 'requested') {
+      actions.appendChild(btn('Confirm', 'btn--primary', function (e) { act('confirm', {}, e.target); }));
+      actions.appendChild(btn('Confirm at another time', 'btn--ghost', function () { openPanel('time'); }));
+      actions.appendChild(btn('Decline', 'btn--ghost btn--danger', function () { openPanel('decline'); }));
+    } else if (b.status === 'confirmed') {
+      actions.appendChild(btn('Reschedule', 'btn--ghost', function () { openPanel('time'); }));
+      actions.appendChild(btn('Completed', 'btn--primary', function (e) { act('complete', {}, e.target); }));
+      actions.appendChild(btn('No-show', 'btn--ghost', function (e) { if (confirm('Mark ' + b.name + ' as a no-show?')) act('no_show', {}, e.target); }));
+      actions.appendChild(btn('Cancel', 'btn--ghost btn--danger', function () { openPanel('cancel'); }));
+      actions.appendChild(h('a', { class: 'btn btn--ghost btn--sm', href: '/api/admin/bookings/' + b.id + '.ics', text: '.ics' }));
+    }
+    actions.appendChild(btn(b.owner_note ? 'Edit note' : 'Note', 'btn--ghost', function () { openPanel('note'); }));
+    // the deposit by hand: paid some other way, or a goodwill refund (Stripe only)
+    if (dep === 'due' && (b.status === 'confirmed' || b.status === 'completed')) actions.appendChild(btn('Deposit paid in person', 'btn--ghost', function (e) { if (confirm('Mark the ' + bkMoney(b.deposit_amount, b.deposit_currency) + ' deposit as paid outside the site (cash, Zelle…)?')) act('deposit_paid', {}, e.target); }));
+    if ((dep === 'paid' || dep === 'kept') && b.deposit_payment_intent) actions.appendChild(btn('Refund deposit', 'btn--ghost', function (e) { if (confirm('Refund the ' + bkMoney(b.deposit_amount, b.deposit_currency) + ' deposit to ' + b.name + '? They are emailed.')) act('deposit_refund', {}, e.target); }));
+    card.appendChild(actions);
+    card.appendChild(panel);
+    return card;
+  }
+  function bkMoney(amount, currency) {
+    if (!amount) return '';
+    try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: (currency || 'usd').toUpperCase(), minimumFractionDigits: amount % 100 ? 2 : 0 }).format(amount / 100); } catch (_) { return (amount / 100) + ' ' + (currency || 'usd').toUpperCase(); }
+  }
+  function bkTime24(iso) { try { var p = new Intl.DateTimeFormat('en-GB', { timeZone: bkTz(), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso)); return p.replace(/^24/, '00'); } catch (_) { return '09:00'; } }
+  function nearestHalf(hm) { var h2 = Number(hm.slice(0, 2)), m = Number(hm.slice(3)); return (h2 < 10 ? '0' : '') + h2 + ':' + (m < 30 ? '00' : '30'); }
+  // Add by hand: services + cities + intake come from the last load.
+  function bkFillAdd() {
+    var d = BK.data, sel = $('#bkaddservice'); if (!sel) return;
+    sel.innerHTML = ''; (d.services || []).forEach(function (s) { sel.appendChild(h('option', { value: s.key, text: s.label })); });
+    var dl = $('#bkcities'); dl.innerHTML = ''; (d.cities || []).forEach(function (c) { dl.appendChild(h('option', { value: c })); });
+    var box = $('#bkaddintake'); box.innerHTML = '';
+    if (d.intake && d.intake.length) {
+      var grid = h('div', { class: 'grid2' });
+      d.intake.forEach(function (f) {
+        var input = f.type === 'select' ? h('select', { name: f.key }, [h('option', { value: '', text: '—' })].concat((f.options || []).map(function (o) { return h('option', { value: o.value, text: o.label }); }))) : f.type === 'textarea' ? h('textarea', { name: f.key }) : h('input', { type: 'text', name: f.key });
+        grid.appendChild(h('label', { class: 'field' }, [h('span', { text: f.label }), input]));
+      });
+      box.appendChild(grid);
+    }
+    var dateIn = $('#bkadd [name=date]'); if (dateIn && !dateIn.value) { dateIn.min = d.today; dateIn.value = d.today; }
+    var blockDate = $('#bkblock [name=date]'); if (blockDate) blockDate.min = d.today;
+  }
+  if (bkPanel) {
+    $('#bkaddbtn').addEventListener('click', function () { var f = $('#bkadd'); f.hidden = !f.hidden; $('#bkblock').hidden = true; if (!f.hidden) $('[name=name]', f).focus(); });
+    $('#bkblockbtn').addEventListener('click', function () { var f = $('#bkblock'); f.hidden = !f.hidden; $('#bkadd').hidden = true; if (!f.hidden) $('[name=date]', f).focus(); });
+    $$('[data-bk-close]').forEach(function (b) { b.addEventListener('click', function () { $('#' + b.getAttribute('data-bk-close')).hidden = true; }); });
+    $('#bkadd').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var body = {}; new FormData(e.target).forEach(function (v, k) { body[k] = v; });
+      body.duration = Number(body.duration);
+      var sb = $('button[type=submit]', e.target); sb.disabled = true;
+      try { var r = await api('POST', '/api/admin/bookings', body); toast(r.message || 'Saved under Confirmed.', 'ok'); e.target.reset(); e.target.hidden = true; await loadBookings(); await loadBookingSummary(); }
+      catch (err) { toast(err.message, 'bad'); }
+      sb.disabled = false;
+    });
+    $('#bkblock').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var date = e.target.date.value, note = e.target.note.value;
+      if (!date) return;
+      var current = (state.published && state.published.calendar && state.published.calendar.blackouts) || [];
+      if (current.some(function (x) { return x.date === date; })) { toast('That day is already blocked.', ''); return; }
+      var sb = $('button[type=submit]', e.target); sb.disabled = true;
+      try { await patchContent({ 'calendar.blackouts': current.concat([{ date: date, note: note }]) }); toast('Blocked. Nobody can ask for that day.', 'ok'); e.target.reset(); e.target.hidden = true; await loadBookings(); }
+      catch (err) { toast(err.message, 'bad'); }
+      sb.disabled = false;
+    });
   }
 
   boot().catch(function (err) { console.error(err); showLogin(); });

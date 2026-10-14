@@ -24,17 +24,31 @@ h1,h2,h3{font-weight:500;letter-spacing:.005em}
 .nav__links{font-size:.7rem;letter-spacing:.24em;text-transform:uppercase;font-weight:500;color:var(--ink-2)}
 .nav__links a:hover{color:var(--accent-2)}
 .lang-toggle{border-color:rgb(255 255 255 / .25);letter-spacing:.14em;border-radius:999px}
-.menu{background:rgb(var(--bg-rgb) / .97)}
+.menu{background:rgb(var(--bg-rgb) / .85);border-color:var(--line-2)}
+.menu nav a{font-family:var(--font-display);font-size:1.15rem}
 
-/* hero: the photo, full bleed; the copy centered on it */
-.hero{text-align:center;min-height:100svh;justify-content:flex-end;padding-bottom:6rem}
-.hero__img{opacity:1;filter:saturate(.75) contrast(1.05);transform:scale(1.04);animation:drift 24s ease-in-out infinite alternate}
-@keyframes drift{from{transform:scale(1.04) translate(0,0)}to{transform:scale(1.1) translate(-1.5%,1%)}}
-.hero__veil{background:linear-gradient(180deg,rgb(var(--bg-rgb) / .45),rgb(var(--bg-rgb) / .15) 40%,rgb(var(--bg-rgb) / .75) 80%,var(--bg))}
+/* hero: a chronograph face in gold hairlines behind the centered copy */
+.hero{text-align:center;min-height:100svh;justify-content:center;padding-bottom:6rem}
+.hero__veil{background:radial-gradient(ellipse 55% 45% at 50% 46%,rgb(var(--accent-rgb) / .1),transparent 70%),linear-gradient(180deg,transparent 70%,var(--bg))}
 .hero__fx i{display:none}
 .hero__grid{grid-template-columns:1fr;justify-items:center}
-.hero__media{display:none}
-.hero__copy{justify-items:center;max-width:820px;gap:1.6rem}
+.hero__gauge{position:absolute;z-index:-1;left:50%;top:50%;width:min(94vw,86vh,860px);margin:0;translate:-50% -50%;pointer-events:none;animation:gaugeIn 1.6s var(--ease) .2s both;
+  --g-track:rgb(var(--accent-rgb) / .3);--g-tick:rgb(var(--accent-rgb) / .5);--g-num:rgb(var(--accent-rgb) / .42);--g-red:rgb(var(--accent-rgb) / .8);--g-needle:var(--accent-2);--g-hub:var(--bg);--g-pin:var(--accent);--g-bezel:rgb(var(--accent-rgb) / .22);--g-font:var(--font-display);--g-num-size:26px}
+/* the copy sits in the middle of the dial, so anything inside the ring (the
+   numerals, the needle, the hub) can only land on text: the ring alone here */
+.hero__gauge .hero__cap,.hero__gauge .gauge__unit,.hero__gauge .gauge__num,.hero__gauge .gauge__needle,.hero__gauge .gauge__hub,.hero__gauge .gauge__pin{display:none}
+.hero__gauge .gauge__track{stroke-width:1.5}
+.hero__gauge .gauge__red{stroke-width:4}
+.hero__gauge .gauge__tick{stroke-width:1}
+.hero__gauge .gauge__tick--major{stroke-width:2}
+.hero__gauge .gauge__hub{stroke:var(--accent);stroke-width:1.5}
+.hero__gauge .gauge__needle{opacity:.85}
+@keyframes gaugeIn{from{opacity:0;scale:.96}}
+/* phones: in the flow under the copy, cropped to the top half; nothing to
+   collide with there, so the numerals and the needle are back */
+@media (max-width:899px){.hero__gauge{position:relative;z-index:0;left:auto;top:auto;translate:none;width:min(100%,440px);aspect-ratio:400/226;overflow:hidden;margin:.4rem auto 0;--g-num:rgb(var(--accent-rgb) / .75)}
+  .hero__gauge .gauge__num,.hero__gauge .gauge__needle,.hero__gauge .gauge__hub,.hero__gauge .gauge__pin{display:inline}}
+.hero__copy{justify-items:center;max-width:820px;gap:1.6rem;width:100%;justify-self:center}
 .hero__eyebrow{display:flex;align-items:center;gap:1rem}
 .hero__eyebrow::before,.hero__eyebrow::after{content:'';width:36px;height:1px;background:var(--accent)}
 .hero__title{font-size:clamp(4.4rem,13vw,10.5rem);line-height:.9;font-weight:500;letter-spacing:-.01em}
@@ -65,6 +79,26 @@ h1,h2,h3{font-weight:500;letter-spacing:.005em}
 .service__detail{font-size:.86rem;color:var(--ink-3);font-weight:300}
 .service__arrow{color:var(--accent);opacity:.8}
 @media (max-width:760px){.services__list{grid-template-columns:1fr}}
+
+/* booking prompts: glass plate, gold hairlines, centered on phones */
+.hero__trust{font-size:.8rem;letter-spacing:.04em;color:var(--ink-2)}
+.cta__band{background:rgb(255 255 255 / .025);border:1px solid var(--line-2);backdrop-filter:blur(12px);border-radius:var(--r-lg)}
+.cta__title{font-weight:500}
+.cta__title b{color:var(--accent-2)}
+.cta__sub{color:var(--ink-2);font-weight:300}
+.cta__fine{font-family:var(--font-body);letter-spacing:.2em;font-size:.64rem;color:var(--accent)}
+.cta__strip{border-color:var(--line-2);background:rgb(255 255 255 / .025);backdrop-filter:blur(12px);border-radius:var(--r-lg)}
+.cta__strip:hover{border-color:var(--accent)}
+.cta__strip-text{font-weight:500}
+.cta__strip-text b{color:var(--accent-2)}
+/* questions: hairline rows */
+.faq__inner .section__head{margin-inline:auto}
+.faq__list{margin-inline:auto}
+.faq__item{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0}
+.faq__q{font-family:var(--font-display);font-weight:500;font-size:1.15rem;padding-inline:.2rem}
+.faq__a{padding-inline:.2rem;color:var(--ink-2);font-weight:300}
+.steps__title{font-family:var(--font-body);letter-spacing:.2em;font-size:.64rem;color:var(--accent)}
+.step__n{border-color:var(--line-2);color:var(--accent)}
 
 /* why: glass */
 .why__grid{grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.2rem}

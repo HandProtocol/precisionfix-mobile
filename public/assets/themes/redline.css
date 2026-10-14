@@ -25,18 +25,35 @@ h1,h2{letter-spacing:.02em;text-transform:uppercase;font-weight:400}
 .nav__links{font-family:var(--font-mono);font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
 .nav__links a:hover{color:var(--ink)}
 .lang-toggle{font-family:var(--font-mono)}
+.menu{background:rgb(var(--bg-2-rgb) / .88);border-color:var(--line-2)}
+.menu nav a{font-family:var(--font-mono);font-size:.82rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.menu nav a:hover{color:var(--ink)}
+.menu__cta{border-color:var(--line)}
+@media (max-width:899px){.nav__cta{padding:.6rem .9rem;font-size:.76rem}}
 
-/* hero: the wordmark owns the screen; the photo burns through on the right */
+/* hero: the wordmark owns the screen; a tachometer runs off the right edge,
+   amber needle, the red zone lit */
 .hero{background:var(--bg)}
-.hero__img{opacity:.22;filter:grayscale(.4) contrast(1.15);mask-image:linear-gradient(90deg,transparent 15%,#000 70%);-webkit-mask-image:linear-gradient(90deg,transparent 15%,#000 70%)}
+.hero__gauge{position:absolute;z-index:-1;right:clamp(.5rem,2.5vw,3.5rem);top:50%;width:min(46vw,680px);margin:0;translate:0 -50%;pointer-events:none;animation:gaugeIn 1.4s var(--ease) .2s both;
+  --g-track:#34373b;--g-tick:#7d8288;--g-num:#d9d6d0;--g-needle:var(--amber);--g-hub:#0e0f10;--g-pin:var(--amber);--g-bezel:#1d1f21;--g-face:rgb(255 255 255 / .015);--g-font:var(--font-display);--g-num-size:34px}
+.hero__gauge .hero__cap{display:none}
+.hero__gauge .gauge__red{filter:drop-shadow(0 0 12px rgb(var(--accent-rgb) / .75))}
+.hero__gauge .gauge__needle{filter:drop-shadow(0 0 8px rgb(245 166 35 / .55))}
+.hero__gauge .gauge__hub{stroke:#34373b;stroke-width:1.5}
+@keyframes gaugeIn{from{opacity:0;scale:.95}}
 .hero__veil{background:linear-gradient(180deg,rgb(var(--bg-rgb) / .2),rgb(var(--bg-rgb) / .1) 50%,var(--bg))}
 .hero__fx i:nth-child(1){inset:auto -20% -30% auto;width:70vw;height:70vw;border-radius:50%;background:radial-gradient(circle,rgb(var(--accent-rgb) / .22),transparent 60%);animation:heat 7s ease-in-out infinite alternate}
 .hero__fx i:nth-child(2){left:-10%;top:60%;width:40vw;height:40vw;border-radius:50%;background:radial-gradient(circle,rgb(var(--accent-rgb) / .1),transparent 60%)}
 .hero__fx i:nth-child(3){display:none}
 @keyframes heat{from{transform:translate(0,0) scale(1)}to{transform:translate(-4%,-6%) scale(1.08)}}
 .hero__grid{grid-template-columns:minmax(0,1fr)}
-.hero__media{display:none}
+/* small laptops: smaller and lower, so the dial clears the wordmark */
+@media (min-width:900px) and (max-width:1199px){.hero__gauge{width:40vw;translate:0 -32%;--g-num-size:30px}}
+/* phones: the copy fills the screen, so a dial behind it fights the text.
+   It sits in the flow instead, cropped to its top half like an instrument strip. */
+@media (max-width:899px){.hero__gauge{position:relative;z-index:0;right:auto;top:auto;translate:none;width:min(100%,440px);aspect-ratio:400/226;overflow:hidden;margin:.6rem auto 0;--g-num-size:30px}}
 .hero__title{font-size:clamp(5rem,19vw,13rem);line-height:.86;letter-spacing:.015em}
+@media (max-width:899px){.hero__title{font-size:clamp(2.6rem,17.5cqw,5.5rem)}}
 .hero__line--alt{color:var(--accent)}
 .hero__sub{color:var(--ink-3);font-weight:300;font-size:1.05rem}
 .hero__sub::first-line{color:var(--ink);font-weight:500}
@@ -68,6 +85,31 @@ h1,h2{letter-spacing:.02em;text-transform:uppercase;font-weight:400}
 .service__title{font-weight:500}
 .service__detail{color:var(--ink-3);font-weight:300}
 .service__arrow{color:var(--ink-3)}
+
+/* booking prompts: a lit plate with a red rule, the strip a red-tinted bar */
+.hero__trust{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.cta__band{background:var(--bg-3);border-radius:var(--r-lg)}
+.cta__rule{display:block;position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+.cta__glow{display:block;position:absolute;right:-8%;bottom:-70%;width:48%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgb(var(--accent-rgb) / .3),transparent 62%);pointer-events:none}
+.cta__title{letter-spacing:.02em}
+.cta__sub{color:var(--ink-3);font-weight:300}
+.cta__fine li:first-child{color:var(--amber)}
+.cta__strip{border-color:rgb(var(--accent-rgb) / .35);background:rgb(var(--accent-rgb) / .07)}
+.cta__strip:hover{border-color:var(--accent);background:rgb(var(--accent-rgb) / .12)}
+.cta__strip-text{text-transform:uppercase;letter-spacing:.02em}
+@media (max-width:899px){.cta__glow{right:-30%;bottom:-40%;width:90%}}
+
+/* questions: readout rows, red plus */
+.faq{background:var(--bg-2);border-block:1px solid var(--line)}
+.faq__item{background:var(--bg-3);border-radius:var(--r)}
+.faq__item[open]{border-color:rgb(var(--accent-rgb) / .5)}
+.faq__q{font-weight:500}
+.faq__a{color:var(--ink-3);font-weight:300}
+
+/* what happens next, on the red band */
+.book .steps__title{color:rgb(255 255 255 / .7)}
+.book .step__n{border-color:rgb(255 255 255 / .45);color:#fff;background:rgb(0 0 0 / .18)}
+.book .step__body{color:rgb(255 255 255 / .8)}
 
 /* why: red-barred cards */
 .why{background:var(--bg-2);border-block:1px solid var(--line)}
@@ -117,4 +159,4 @@ h1,h2{letter-spacing:.02em;text-transform:uppercase;font-weight:400}
 .foot__brand{font-size:1.4rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
 .foot__brand .mark{color:var(--accent)}
 .callbar{background:rgb(var(--bg-rgb) / .92)}
-@media (max-width:899px){.book::before{top:1.2rem;font-size:5.2rem;color:rgb(0 0 0 / .1)}.book{padding-top:6.5rem}}
+@media (max-width:899px){.book::before{top:1.6rem;font-size:4.6rem;color:rgb(0 0 0 / .1);left:0;right:0;transform:none;text-align:center;white-space:normal;overflow:hidden;line-height:1}.book{padding-top:6.5rem}}

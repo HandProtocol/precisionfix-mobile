@@ -24,12 +24,11 @@ h1,h2,h3{font-weight:800;letter-spacing:-.03em}
 .nav__links a{padding:.45rem .8rem;border-radius:999px;transition:background .2s}
 .nav__links a:hover{background:var(--bg-3)}
 .lang-toggle{border:2px solid var(--ink);font-weight:800}
-.menu{background:var(--bg-2)}
-.menu nav{font-weight:800}
+.menu{background:#fff;border:2px solid var(--ink);box-shadow:0 8px 0 var(--ink)}
+.menu nav a{font-weight:800}
 
-/* hero: the sunset behind a tilted photo, stickers, a chunky wordmark */
+/* hero: the sunset behind a tilted dial card, stickers, a chunky wordmark */
 .hero{padding-bottom:5rem}
-.hero__img{display:none}
 .hero__fx i:nth-child(1){right:-12%;top:8%;width:min(62vw,720px);height:min(62vw,720px);border-radius:50%;background:var(--sun);opacity:.9;filter:blur(2px);animation:rise 12s ease-in-out infinite alternate}
 .hero__fx i:nth-child(2){left:-8%;bottom:-8%;width:34vw;height:34vw;border-radius:50%;background:radial-gradient(circle,rgb(123 63 228 / .28),transparent 65%)}
 .hero__fx i:nth-child(3){left:38%;top:-10%;width:22vw;height:22vw;border-radius:50%;background:radial-gradient(circle,rgb(56 189 248 / .35),transparent 65%)}
@@ -37,6 +36,7 @@ h1,h2,h3{font-weight:800;letter-spacing:-.03em}
 .hero__grid{align-items:center}
 .hero__eyebrow{background:var(--accent);color:#fff}
 .hero__title{font-size:clamp(4.4rem,14vw,9.5rem);line-height:.88;letter-spacing:-.05em}
+@media (max-width:899px){.hero__title{font-size:clamp(2.6rem,14vw,4.6rem)}}
 .hero__line--alt{background:var(--sun);-webkit-background-clip:text;background-clip:text;color:transparent;padding-right:.1em}
 .hero__sub{font-size:1.15rem;color:var(--ink-2)}
 .hero__badge{border:2px solid var(--ink);border-radius:999px;font-family:var(--font-body);font-weight:800;letter-spacing:.04em;text-transform:none;font-size:.82rem;background:#fff}
@@ -47,7 +47,14 @@ h1,h2,h3{font-weight:800;letter-spacing:-.03em}
 .decor--stickers li:nth-child(3){background:var(--accent-2);transform:rotate(-1.5deg)}
 .hero__media{transform:rotate(-3deg);padding:12px 12px 14px;background:#fff;border-radius:var(--r-lg);box-shadow:0 30px 60px -30px rgb(42 26 58 / .5),0 8px 0 var(--ink);transition:transform .6s var(--ease)}
 .hero__media:hover{transform:rotate(-1deg) translateY(-4px)}
-.hero__photo{border-radius:calc(var(--r-lg) - 8px);aspect-ratio:4/3}
+.hero__gauge{max-width:460px;justify-self:center;--g-track:var(--ink);--g-tick:var(--ink);--g-num:var(--ink);--g-red:var(--accent);--g-needle:var(--purple);--g-hub:var(--ink);--g-pin:var(--accent-3);--g-bezel:transparent;--g-face:rgb(255 179 71 / .14);--g-font:var(--font-display);--g-num-size:30px}
+.hero__gauge .gauge{border-radius:calc(var(--r-lg) - 8px);background:var(--bg)}
+.hero__gauge .gauge__track{stroke-width:5}
+.hero__gauge .gauge__red{stroke-width:12}
+.hero__gauge .gauge__tick{stroke-width:2.5}
+.hero__gauge .gauge__tick--major{stroke-width:5;stroke-linecap:round}
+.hero__gauge .gauge__num{font-weight:800}
+.hero__gauge .gauge__unit{fill:var(--ink-2);font-family:var(--font-body);font-weight:800;letter-spacing:.12em;font-size:11px}
 .hero__cap{font-weight:700;color:var(--ink-2);font-size:.85rem;padding:.2rem .4rem 0}
 .hero__scroll{font-family:var(--font-body);font-weight:800;letter-spacing:.1em}
 
@@ -73,6 +80,24 @@ h1,h2,h3{font-weight:800;letter-spacing:-.03em}
 .service__title{font-family:var(--font-display);font-weight:800;font-size:1.1rem;letter-spacing:-.02em}
 .service__detail{font-weight:600;color:var(--ink-3)}
 .service__arrow{opacity:1;color:var(--accent)}
+
+/* booking prompts: a white card with the chunky shadow, a sun-tinted strip */
+.hero__trust{font-weight:700;font-size:.82rem;color:var(--ink-2)}
+.cta__band{background:#fff;border:2px solid var(--ink);border-radius:var(--r-lg);box-shadow:0 8px 0 var(--ink)}
+.cta__title{letter-spacing:-.03em}
+.cta__sub{color:var(--ink-2);font-weight:600}
+.cta__fine{font-family:var(--font-body);font-weight:800;letter-spacing:.06em;color:var(--ink-2)}
+.cta__strip{background:#fff;border:2px solid var(--ink);border-radius:var(--r-lg);box-shadow:0 6px 0 var(--ink)}
+.cta__strip:hover{border-color:var(--ink);box-shadow:0 9px 0 var(--accent)}
+.cta__strip-text{font-weight:800;letter-spacing:-.03em}
+/* questions: white pills */
+.faq__item{background:#fff;border:2px solid var(--ink);border-radius:var(--r);box-shadow:0 4px 0 var(--ink)}
+.faq__q{font-weight:800}
+.faq__mark::before,.faq__mark::after{height:3px;border-radius:3px}
+.faq__a{color:var(--ink-2);font-weight:600}
+.book .steps__title{color:rgb(255 255 255 / .85)}
+.book .step__n{border:2px solid #fff;color:#fff;font-weight:800}
+.book .step__body{color:rgb(255 255 255 / .9)}
 
 /* why: four colours */
 .why{background:var(--bg-2);border-radius:var(--r-lg);margin-inline:var(--gutter)}

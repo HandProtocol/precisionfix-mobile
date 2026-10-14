@@ -35,14 +35,22 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.05}
 .nav__brand .mark{width:28px;height:28px}
 .nav__links{display:flex;gap:1.5rem;font-size:.9rem;font-weight:500}
 .nav__tools{display:flex;align-items:center;gap:.7rem}
-.nav__toggle{display:none;width:42px;height:42px;place-items:center;position:relative}
-.nav__toggle span:not(.sr){position:absolute;left:11px;width:20px;height:2px;background:currentColor;transition:transform .3s var(--ease),top .3s var(--ease)}
-.nav__toggle span:nth-child(1){top:16px}.nav__toggle span:nth-child(2){top:24px}
-.nav__toggle[aria-expanded=true] span:nth-child(1){top:20px;transform:rotate(45deg)}
-.nav__toggle[aria-expanded=true] span:nth-child(2){top:20px;transform:rotate(-45deg)}
-.menu{position:fixed;inset:0;z-index:40;display:grid;place-content:center;gap:2rem;padding:6rem var(--gutter) 3rem;background:var(--bg);text-align:center}
-.menu nav{display:grid;gap:1rem;font-family:var(--font-display);font-size:clamp(1.8rem,7vw,2.6rem)}
-.menu__cta{display:grid;gap:.8rem}
+.nav__toggle{display:none;width:44px;height:44px;place-items:center;position:relative;border-radius:999px;border:1px solid transparent;transition:border-color .2s,background .2s}
+.nav__toggle[aria-expanded=true]{border-color:var(--line-2);background:rgb(var(--bg-2-rgb) / .8)}
+.nav__toggle span:not(.sr){position:absolute;left:12px;width:20px;height:2px;background:currentColor;transition:transform .3s var(--ease),top .3s var(--ease)}
+.nav__toggle span:nth-child(1){top:17px}.nav__toggle span:nth-child(2){top:25px}
+.nav__toggle[aria-expanded=true] span:nth-child(1){top:21px;transform:rotate(45deg)}
+.nav__toggle[aria-expanded=true] span:nth-child(2){top:21px;transform:rotate(-45deg)}
+/* phone menu: a card that drops from the header (the HAND Protocol pattern),
+   never a full-screen takeover; the header keeps its Book button beside it */
+.menu{position:fixed;left:var(--gutter);right:var(--gutter);top:calc(var(--nav-h) + .4rem);z-index:40;display:grid;gap:.4rem;padding:.6rem;background:rgb(var(--bg-2-rgb) / .9);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);border:1px solid var(--line-2);border-radius:var(--r-lg);box-shadow:0 30px 60px -30px rgb(0 0 0 / .6);text-align:center;transform-origin:top center;animation:menuIn .25s var(--ease)}
+@keyframes menuIn{from{opacity:0;transform:translateY(-8px) scale(.98)}}
+.menu nav{display:grid}
+.menu nav a{display:block;padding:.9rem 1rem;border-radius:var(--r);font-weight:500;font-size:1.02rem;transition:background .2s,color .2s}
+.menu nav a:hover{background:rgb(var(--accent-rgb) / .1)}
+.menu__cta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;padding:.4rem .4rem 0;border-top:1px solid var(--line)}
+.menu__cta .btn{padding-inline:1rem}
+.menu__scrim{position:fixed;inset:0;z-index:39;background:rgb(0 0 0 / .35)}
 .lang-toggle{display:inline-flex;align-items:center;gap:0;padding:0;border:1px solid var(--line-2);border-radius:var(--r-btn);overflow:hidden;font-size:.72rem;font-weight:700;letter-spacing:.08em;line-height:1}
 .lang-toggle span{padding:.5rem .6rem;transition:background .2s,color .2s}
 .lang-toggle .lang-toggle__a{background:var(--accent);color:var(--on-accent)}
@@ -52,20 +60,41 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.05}
 /* hero */
 .hero{position:relative;min-height:100svh;display:flex;flex-direction:column;justify-content:center;padding:calc(var(--nav-h) + 2.5rem) 0 4rem;overflow:hidden;isolation:isolate}
 .hero__bg{position:absolute;inset:0;z-index:-1;pointer-events:none}
-.hero__img{width:100%;height:100%;object-fit:cover}
 .hero__veil,.hero__fx{position:absolute;inset:0}
 .hero__fx i{position:absolute;display:block}
 .hero__grid{display:grid;gap:2.5rem;align-items:center}
-.hero__copy{display:grid;gap:1.4rem;justify-items:start;max-width:640px}
+.hero__copy{display:grid;gap:1.4rem;justify-items:start;max-width:640px;min-width:0;max-width:min(640px,100%)}
+.hero__copy>*{max-width:100%}
 .eyebrow{font-family:var(--font-mono);font-size:.74rem;letter-spacing:.18em;text-transform:uppercase}
 .hero__title{font-size:clamp(4.2rem,15vw,10rem);line-height:.9;display:grid}
 .hero__line{display:block}
 .hero__sub{font-size:clamp(1rem,1.4vw,1.15rem);max-width:34rem}
 .hero__cta{display:flex;flex-wrap:wrap;gap:.8rem}
+.hero__trust{display:flex;flex-wrap:wrap;gap:.35rem 1.2rem;font-size:.84rem;color:var(--ink-2)}
+.hero__trust li{display:inline-flex;align-items:center;gap:.5rem}
+.hero__trust li::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent);flex:none}
 .hero__badge{display:inline-flex;align-items:center;gap:.55rem;font-family:var(--font-mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;padding:.55rem 1rem;border:1px solid var(--line-2);border-radius:var(--r-btn)}
 .hero__badge::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--accent)}
 .hero__media{position:relative;margin:0}
-.hero__photo{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-lg)}
+/* the hero's tachometer (site/page.mjs gauge()): one drawing, every look
+   restyles it through --g-*. The needle is drawn pointing right; a value v
+   sits at (150 + 30v)deg, so idle (0.9) is 177deg and the rev peaks at 372. */
+.hero__gauge{--g-track:var(--line-2);--g-tick:var(--ink-3);--g-num:var(--ink-2);--g-red:var(--accent);--g-needle:var(--accent);--g-hub:var(--ink);--g-pin:var(--bg);--g-face:transparent;--g-bezel:var(--line);--g-font:var(--font-mono);--g-num-size:22px}
+.gauge{display:block;width:100%;height:auto;overflow:visible}
+.gauge__bezel{fill:none;stroke:var(--g-bezel);stroke-width:1.5}
+.gauge__face{fill:var(--g-face)}
+.gauge__track{fill:none;stroke:var(--g-track);stroke-width:3;stroke-linecap:round}
+.gauge__red{fill:none;stroke:var(--g-red);stroke-width:7}
+.gauge__tick{stroke:var(--g-tick);stroke-width:1.5}
+.gauge__tick--major{stroke-width:3}
+.gauge__tick.is-red{stroke:var(--g-red)}
+.gauge__num{fill:var(--g-num);font-family:var(--g-font);font-size:var(--g-num-size);text-anchor:middle;dominant-baseline:central}
+.gauge__num.is-red{fill:var(--g-red)}
+.gauge__unit{fill:var(--g-tick);font-family:var(--font-mono);font-size:10px;letter-spacing:.24em;text-anchor:middle}
+.gauge__needle{fill:var(--g-needle);transform-origin:200px 200px;transform:rotate(177deg);animation:rev 2.6s cubic-bezier(.3,.05,.2,1) .6s both}
+.gauge__hub{fill:var(--g-hub)}
+.gauge__pin{fill:var(--g-pin)}
+@keyframes rev{0%{transform:rotate(150deg)}40%{transform:rotate(372deg)}52%{transform:rotate(364deg)}100%{transform:rotate(177deg)}}
 .hero__cap{display:flex;gap:.7rem;align-items:center;margin-top:.7rem;font-size:.8rem;color:var(--ink-3)}
 .hero__scroll{position:absolute;left:var(--gutter);bottom:1.6rem;display:flex;align-items:center;gap:.7rem;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
 .hero__scroll i{display:block;width:40px;height:1px;background:currentColor;opacity:.5}
@@ -110,6 +139,46 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.05}
 .tile__title{font-weight:700;color:var(--ink)}
 .tile__cap{grid-column:2}
 
+/* booking prompts: the band after Services, the strip after the photos */
+.cta{padding:0 0 clamp(4rem,9vw,7.5rem);position:relative}
+.cta__band{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(240px,auto);gap:2.5rem;align-items:center;padding:clamp(2rem,4vw,3.2rem) clamp(1.4rem,4vw,3rem);background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-lg)}
+.cta__rule,.cta__glow{display:none}
+.cta__copy{display:grid;gap:.8rem;position:relative;justify-items:start}
+.cta__title{font-size:clamp(2rem,4.6vw,3.6rem);line-height:.98}
+.cta__title b{font-weight:inherit;color:var(--accent)}
+.cta__sub{color:var(--ink-2);max-width:34rem}
+.cta__actions{display:grid;gap:.7rem;position:relative}
+.cta__actions .btn{justify-content:center}
+.cta__fine{display:flex;flex-wrap:wrap;justify-content:center;gap:.2rem .9rem;font-family:var(--font-mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);text-align:center}
+.cta__fine li+li::before{content:'·';margin-right:.9rem}
+.cta__strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem 2rem;padding:1.2rem 1.2rem 1.2rem 1.6rem;border:1px solid var(--line-2);border-radius:var(--r-lg);background:var(--bg-2);transition:border-color .25s,background .25s,transform .35s var(--ease)}
+.cta__strip:hover{border-color:var(--accent);transform:translateY(-2px)}
+.cta__strip-text{font-family:var(--font-display);font-size:clamp(1.5rem,3vw,2.3rem);line-height:1.05}
+.cta__strip-text b{font-weight:inherit;color:var(--accent);white-space:nowrap}
+.cta__strip-text br{display:none}
+.cta__strip .btn{pointer-events:none}
+
+/* questions */
+.faq__list{display:grid;gap:.5rem;max-width:860px}
+.faq__item{border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2)}
+.faq__q{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.05rem 1.2rem;font-weight:600;font-size:1.02rem;cursor:pointer;list-style:none}
+.faq__q::-webkit-details-marker{display:none}
+.faq__mark{position:relative;flex:none;width:18px;height:18px}
+.faq__mark::before,.faq__mark::after{content:'';position:absolute;left:50%;top:50%;width:14px;height:2px;background:var(--accent);transform:translate(-50%,-50%);transition:transform .25s var(--ease)}
+.faq__mark::after{transform:translate(-50%,-50%) rotate(90deg)}
+.faq__item[open] .faq__mark::after{transform:translate(-50%,-50%) rotate(0)}
+.faq__a{padding:0 1.2rem 1.2rem;color:var(--ink-2);max-width:40rem}
+
+/* what happens next (booking column) */
+.steps{display:grid;gap:.9rem;width:100%}
+.steps__title{font-size:1rem;font-family:var(--font-mono);font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.steps__list{display:grid;gap:.7rem}
+.step{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.9rem;align-items:start}
+.step__n{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;border:1px solid var(--line-2);font-family:var(--font-mono);font-size:.78rem;color:var(--accent)}
+.step__text{display:grid;gap:.1rem;font-size:.92rem}
+.step__title{font-weight:700}
+.step__body{color:var(--ink-2)}
+
 /* area */
 .area__inner{position:relative}
 .area__tags{display:flex;flex-wrap:wrap;gap:.6rem}
@@ -145,7 +214,8 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.05}
 .field--choice{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;align-content:end}
 .field--choice legend{grid-column:1/-1}
 .choice{display:flex;align-items:center;justify-content:center;gap:.5rem;padding:.8rem;border:1px solid var(--line-2);border-radius:var(--r);cursor:pointer;font-weight:600;font-size:.92rem;transition:background .2s,border-color .2s,color .2s}
-.choice input{accent-color:var(--accent);margin:0}
+/* a radio inside a .field must not take the text-input box (.field input: width 100% + padding) */
+.choice input{accent-color:var(--accent);margin:0;flex:none;width:1.1rem;height:1.1rem;padding:0}
 .choice:has(input:checked){border-color:var(--accent);background:rgb(var(--accent-rgb) / .12)}
 .form__actions{display:grid;gap:.8rem;justify-items:start}
 .form__note{font-size:.82rem;color:var(--ink-3)}
@@ -167,10 +237,14 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.05}
 .foot__links{display:flex;gap:1.2rem;font-size:.8rem;color:var(--ink-3);margin-top:.6rem}
 .foot__links a:hover{color:var(--ink)}
 
-/* mobile call bar */
+/* mobile call bar: shown under 900px once the hero's own buttons have
+   scrolled away, hidden again beside the booking form and behind the menu */
 .callbar{position:fixed;left:0;right:0;bottom:0;z-index:45;display:none;gap:.6rem;padding:.7rem var(--gutter) calc(.7rem + env(safe-area-inset-bottom));background:rgb(var(--bg-rgb) / .9);backdrop-filter:blur(14px);border-top:1px solid var(--line);transform:translateY(110%);transition:transform .4s var(--ease)}
-.callbar .btn{flex:1}
+.callbar .btn{flex:1;min-height:48px;min-width:0;padding-inline:.8rem}
+.callbar .btn--primary{flex:1.4}
+.callbar .btn span{overflow:hidden;text-overflow:ellipsis}
 .callbar.is-visible{transform:none}
+body.menu-open .callbar{transform:translateY(110%)}
 
 /* lightbox */
 .lightbox{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:1rem;background:rgb(0 0 0 / .92)}
@@ -195,11 +269,29 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.05}
   .book__grid{grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:4rem}
 }
 @media (max-width:899px){
-  .nav__links,.nav__cta{display:none}
+  .nav__links{display:none}
+  .nav__cta{display:inline-flex}
   .nav__toggle{display:grid}
   .callbar{display:flex}
+  .nav__row{gap:.6rem}
+  .nav__tools{gap:.45rem;min-width:0}
+  .nav__brand .nav__name{display:none}
+  .nav__cta{padding:.55rem .8rem;font-size:.78rem;white-space:nowrap}
+  .lang-toggle span{padding:.5rem .45rem}
+}
+/* the narrowest phones: the Book button keeps its word, the language pill gives way */
+@media (max-width:359px){
+  .lang-toggle{display:none}
+  .nav__cta{padding:.5rem .7rem}
   .hero{min-height:auto;padding-top:calc(var(--nav-h) + 3rem)}
+  /* the wordmark may never run past the screen: 2.4rem floor at 320, grows with the width */
+  .hero__copy{container-type:inline-size}
+  .hero__title{font-size:clamp(2.6rem,17vw,5rem);overflow-wrap:anywhere}
+  .hero__sub{max-width:100%}
   .hero__scroll{display:none}
+  .cta__band{grid-template-columns:1fr;gap:1.6rem}
+  .cta__strip{justify-content:center;text-align:center}
+  .cta__strip-text br{display:inline}
 }
 @media (max-width:640px){
   .form__row,.form__row--3{grid-template-columns:1fr}

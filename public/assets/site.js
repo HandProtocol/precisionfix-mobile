@@ -1,6 +1,6 @@
-/* PrecisionFix effects: nav state, mobile menu, EN/ES switch, reveals,
-   the booking form (posts to Netlify, shows the thank-you inline), the
+/* PrecisionFix effects: nav state, mobile menu, EN/ES switch, reveals, the
    lightbox, and the Diagnostic theme's typed readout. Vanilla, no deps.
+   The booking calendar in #book is the engine's (/booking/booking.js).
    Everything degrades: no JS = the form still posts, the copy is English. */
 (function () {
   'use strict';
@@ -31,8 +31,11 @@
     try { localStorage.setItem(KEY, next); } catch (_) {}
   });
 
-  /* ---- scroll: nav + call bar ---- */
-  var nav = $('#nav'), callbar = $('#callbar'), hero = $('.hero'), ticking = false;
+  /* ---- scroll: nav + call bar ----
+     The bar appears the moment the hero's own Book / Call buttons leave the
+     screen (so a booking is always one tap away) and hides again once the
+     booking form itself is in view. */
+  var nav = $('#nav'), callbar = $('#callbar'), hero = $('.hero'), heroCta = $('.hero__cta'), ticking = false;
   function onScroll() {
     if (ticking) return; ticking = true;
     w.requestAnimationFrame(function () {
@@ -40,8 +43,8 @@
       if (nav) nav.classList.toggle('is-scrolled', y > 20);
       if (callbar) {
         var bookTop = ($('#book') || {}).offsetTop || 1e9;
-        var pastHero = hero ? y > hero.offsetHeight * 0.55 : y > 400;
-        callbar.classList.toggle('is-visible', pastHero && y + w.innerHeight < bookTop + 120);
+        var past = heroCta ? heroCta.getBoundingClientRect().bottom < 0 : hero ? y > hero.offsetHeight * 0.55 : y > 400;
+        callbar.classList.toggle('is-visible', past && y + w.innerHeight < bookTop + 120);
       }
       ticking = false;
     });
@@ -49,12 +52,16 @@
   w.addEventListener('scroll', onScroll, { passive: true }); onScroll();
 
   /* ---- mobile menu ---- */
-  var toggle = $('#navtoggle'), menu = $('#menu');
+  /* a card under the header, not a takeover: a scrim behind it closes it, so
+     does a tap outside, Escape, a link, or growing past the phone breakpoint */
+  var toggle = $('#navtoggle'), menu = $('#menu'), scrim = $('#menuscrim');
   if (toggle && menu) {
-    var setMenu = function (open) { toggle.setAttribute('aria-expanded', open ? 'true' : 'false'); menu.hidden = !open; body.style.overflow = open ? 'hidden' : ''; };
+    var setMenu = function (open) { toggle.setAttribute('aria-expanded', open ? 'true' : 'false'); menu.hidden = !open; if (scrim) scrim.hidden = !open; body.classList.toggle('menu-open', open); };
     toggle.addEventListener('click', function () { setMenu(menu.hidden); });
+    if (scrim) scrim.addEventListener('click', function () { setMenu(false); });
     $$('a', menu).forEach(function (a) { a.addEventListener('click', function () { setMenu(false); }); });
-    d.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) setMenu(false); });
+    d.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { setMenu(false); toggle.focus(); } });
+    w.matchMedia('(min-width: 900px)').addEventListener('change', function (e) { if (e.matches && !menu.hidden) setMenu(false); });
   }
 
   /* ---- reveal on scroll ---- */
@@ -88,36 +95,6 @@
       dds[li].textContent = texts[li].slice(0, ++ci);
       if (ci >= texts[li].length) { li++; ci = 0; setTimeout(type, 260); } else setTimeout(type, 22 + Math.random() * 30);
     })();
-  }
-
-  /* ---- booking form → Netlify, thank-you inline ---- */
-  var form = $('#bookform');
-  if (form) {
-    var status = $('.form__status', form), done = $('.form__done', form);
-    var vin = form.querySelector('[name=vin]');
-    if (vin) vin.addEventListener('input', function () { vin.value = vin.value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, ''); });
-    form.addEventListener('submit', function (e) {
-      if (!w.fetch || !w.URLSearchParams) return; // native post to Netlify's thank-you page
-      e.preventDefault();
-      if (!form.checkValidity()) { form.reportValidity(); return; }
-      var es = root.lang === 'es';
-      form.classList.add('is-sending');
-      status.className = 'form__status'; status.textContent = es ? 'Enviando…' : 'Sending…';
-      var data = new FormData(form);
-      fetch(form.getAttribute('action') || '/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(data).toString() })
-        .then(function (res) { if (!res.ok) throw new Error('status ' + res.status); })
-        .then(function () {
-          status.textContent = '';
-          $$('.form__group, .form__actions', form).forEach(function (el) { el.hidden = true; });
-          done.hidden = false; done.focus();
-          try { done.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' }); } catch (_) {}
-        })
-        .catch(function () {
-          form.classList.remove('is-sending');
-          status.className = 'form__status is-bad';
-          status.textContent = es ? 'No se pudo enviar. Llámame o mándame un texto y lo arreglamos.' : 'That did not send. Call or text me and we will sort it out.';
-        });
-    });
   }
 
   /* ---- lightbox ---- */
