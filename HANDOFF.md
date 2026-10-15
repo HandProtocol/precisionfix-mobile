@@ -178,6 +178,45 @@ into `clients/_template` with the rest of the deposit work):
 Verified live after the deploy: zero deposit words on the page, 3 steps,
 6 FAQ items, pricing = surcharge + hourly.
 
+**2026-10-14 (late night): notice liability line, quick picks, refresh
+memory.** koH, after seeing the live funnel: "make sure that it says that
+they are not liable for any non diagnoses repairs", "give more options for
+the self diagnosis from the customer, allow them to describe whatever the
+problem is", and "when a user selects a time ... when refreshing it would go
+into the ether". Commit `f924f3a` (mirror repo, auto-deployed),
+`assetVersion` `20261014d`, 149 tests, walked through live with Playwright
+(every refresh landed back on the same step, zero console errors; test row
+deleted).
+
+- **Notice** (`lib/booking-car.mjs`): `SELF_REPORT_VERSION` is now
+  `self-report-2026-10-14b`; the EN/ES text adds "and is not liable for any
+  repair made without a diagnosis by PrecisionFix first". Old rows keep the
+  version they agreed to (the emails print what is stored). **koordi carries
+  its own copy of this notice** (`src/booking/self-report.mjs`,
+  `self-report-2026-10-14`): sync the words and the version there too.
+- **"What is going on with the car? (optional)"**: 13 tick-what-fits chips
+  (`SYMPTOMS` in `booking-car.mjs`; field `name="noticed"`, the class
+  `booking__chips` / `booking__chip` in `public/booking/booking.css`), then
+  "Describe it in your own words" (`ISSUES_MAX` 2500, placeholder invites
+  anything). The server (`buildShare`) stores the picked labels in the
+  customer's language on top of the typed text in the existing `issues`
+  column, so no migration. Picks alone still need the agreement tick. The
+  word "symptom" must not reach the customer side (test at
+  `tests/booking-api.test.mjs` "bookingBlock renders…"), hence `noticed`.
+- **Refresh memory** (`public/booking/booking.js`): the draft (day, time,
+  details fields) is saved to `localStorage` `hand-booking-draft` on every
+  change, restored for 24 h once the days answer confirms the slot is still
+  open, landing on the details step. The sent request is saved to
+  `hand-booking-sent` (token, name, when, service, manage_url, shared, car,
+  issues flag) for 7 days: a refresh shows the Sent view again with the car
+  step, then the notice step, exactly where they left off. A new
+  **Request another time** button in the Sent view clears both and starts
+  over. `HandBookingCal.isFresh` is the pure check. No sign-in: the manage
+  token in storage is the identity, the same one the email carries.
+- Engine files touched again (lift into `clients/_template`):
+  `lib/booking-car.mjs`, `lib/booking-form.mjs`, `public/booking/booking.js`,
+  `public/booking/booking.css`.
+
 ## Start here (cold session)
 
 1. Read this file, then `README.md` (owner section on top, engine doc below).
