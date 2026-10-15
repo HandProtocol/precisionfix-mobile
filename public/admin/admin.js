@@ -7,7 +7,7 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || d).querySelectorAll(s)); };
   var DRAFT_KEY = 'site-draft-v1';
 
-  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0, bookings: null };
+  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0, bookings: null, payments: null, route: 'home' };
 
   // ---------------------------------------------------------------- utils --
   function h(tag, attrs, children) {
@@ -52,6 +52,11 @@
   function fmtDate(iso) { try { return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); } catch (_) { return iso; } }
 
   // ---------------------------------------------------------------- views --
+  // One portal: every place is a route (#home, #bookings, #content/<section>,
+  // #media, #look, #payments, #setup, #editors, #history). go() shows it and
+  // pushes history, so the phone's back gesture steps back through places.
+  var PHONE = window.matchMedia ? window.matchMedia('(max-width: 900px)') : { matches: false };
+  var TITLES = { home: 'Home', bookings: 'Bookings', content: 'Words and info', media: 'Photos', look: 'Look', payments: 'Payments', setup: 'Setup', editors: 'Who can edit', history: 'Publish history' };
   function showLogin() {
     $('#app').dataset.state = 'login';
     $('#login').hidden = false; $('#shell').hidden = true;
@@ -59,26 +64,116 @@
   function showShell() {
     $('#app').dataset.state = 'app';
     $('#login').hidden = true; $('#shell').hidden = false;
-    $('#who').textContent = state.editor.email;
-    $('#tab-editors').hidden = state.editor.role !== 'owner';
-    // First visit with setup left to do: open the Setup tab, once per session.
-    try {
-      if (state.setupOpen && !sessionStorage.getItem(DRAFT_KEY + '-setup-seen')) {
-        sessionStorage.setItem(DRAFT_KEY + '-setup-seen', '1');
-        setTab('setup');
-      }
-    } catch (_) {}
+    $('#who').textContent = 'Signed in as ' + state.editor.email;
+    var hw = $('#homewho'); if (hw) hw.textContent = 'Signed in as ' + state.editor.email;
+    $$('[data-owner-only]').forEach(function (el) { el.hidden = state.editor.role !== 'owner'; });
   }
-  function setTab(name) {
-    if (!$('[data-tab="' + name + '"]')) name = 'content';
-    $$('.tab').forEach(function (t) { t.classList.toggle('is-active', t.dataset.tab === name); });
-    ['content', 'media', 'editors', 'history', 'setup', 'bookings'].forEach(function (p) { var el = $('#panel-' + p); if (el) el.hidden = p !== name; });
+  function parseRoute(hash) {
+    var r = String(hash || '').replace(/^#\/?/, '');
+    var name = r.split('/')[0], sec = r.split('/')[1] || '';
+    if (!name || !$('#panel-' + name)) return { name: 'home', sec: '' };
+    if (name === 'editors' && state.editor && state.editor.role !== 'owner') return { name: 'home', sec: '' };
+    return { name: name, sec: name === 'content' ? sec : '' };
+  }
+  function routeOf(r) { return r.name + (r.sec ? '/' + r.sec : ''); }
+  // go('content/calendar') · go('bookings', { replace: true })
+  function go(route, opts) {
+    var r = parseRoute('#' + route);
+    if (routeOf(r) !== (location.hash || '').replace(/^#/, '')) history[opts && opts.replace ? 'replaceState' : 'pushState'](null, '', '/admin/#' + routeOf(r));
+    show(r, opts);
+  }
+  function show(r, opts) {
+    closeMenu();
+    var name = r.name;
+    state.route = name;
+    $$('.main > .panel').forEach(function (p) { p.hidden = p.id !== 'panel-' + name; });
+    // the exact place lights up (Hours and days off = #content/calendar); failing that, its panel (Edit)
+    var here = routeOf(r), exact = $$('[data-go]').some(function (b) { return b.getAttribute('data-go') === here && b.closest('.menu,.dock'); });
+    $$('[data-go]').forEach(function (b) {
+      var g = b.getAttribute('data-go'), on = g === here || (!exact && g === name);
+      b.classList.toggle('is-active', on);
+      if (b.classList.contains('nav') || b.classList.contains('dock__btn')) { if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }
+    });
+    var sec = name === 'content' && r.sec ? state.schema.filter(function (x) { return x.key === r.sec; })[0] : null;
+    $('#viewtitle').textContent = sec ? sec.label : (TITLES[name] || '');
+    document.title = (sec ? sec.label : (TITLES[name] || 'Editor')) + ' · ' + ((state.site && state.site.name) || $('[data-site-name]').textContent);
+    if (name === 'content') focusSection(r.sec);
     if (name === 'editors') loadEditors();
     if (name === 'history') loadHistory();
     if (name === 'bookings') loadBookings();
-    if (name === 'setup') { var nxt = $('#setuplist .task:not(.is-done):not([data-later])'); if (nxt) setTimeout(function () { nxt.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60); }
+    if (name === 'payments') loadPayments();
+    if (name === 'look') mountLooks();
+    if (name === 'home') renderHome();
+    if (name === 'setup') { var nxt = $('#setuplist .task:not(.is-done):not([data-later])'); if (nxt && !(opts && opts.keepScroll)) setTimeout(function () { nxt.scrollIntoView({ behavior: 'smooth', block: 'start' }); flash(nxt); }, 60); }
+    else if (!(name === 'content' && r.sec) && !(opts && opts.keepScroll)) window.scrollTo(0, 0);
   }
-  $$('.tab').forEach(function (t) { t.addEventListener('click', function () { setTab(t.dataset.tab); }); });
+  window.addEventListener('popstate', function () { if (state.editor) show(parseRoute(location.hash)); });
+  d.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-go]'); if (!b) return;
+    ev.preventDefault(); go(b.getAttribute('data-go'));
+  });
+
+  // ----------------------------------------------------------------- menu --
+  // A rail on a computer; on a phone, a bottom sheet over a scrim, opened
+  // from the dock or the top bar. Find searches places, sections, fields
+  // and setup steps by their words.
+  function openMenu() {
+    var m = $('#menu'); if (!PHONE.matches) { $('#menufind').focus(); return; }
+    m.classList.add('is-open'); $('#scrim').hidden = false; d.body.classList.add('has-sheet');
+    $$('[aria-controls="menu"]').forEach(function (b) { b.setAttribute('aria-expanded', 'true'); });
+    setTimeout(function () { $('#menuclose').focus(); }, 30);
+  }
+  function closeMenu() {
+    var m = $('#menu'); if (!m || !m.classList.contains('is-open')) return;
+    m.classList.remove('is-open'); $('#scrim').hidden = true; d.body.classList.remove('has-sheet');
+    $$('[aria-controls="menu"]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+    var f = $('#menufind'); if (f && f.value) { f.value = ''; renderFind(''); }
+  }
+  $('#menubtn').addEventListener('click', function () { if ($('#menu').classList.contains('is-open')) closeMenu(); else openMenu(); });
+  $('#dockmenu').addEventListener('click', function () { if ($('#menu').classList.contains('is-open')) closeMenu(); else openMenu(); });
+  $('#menuclose').addEventListener('click', closeMenu);
+  $('#scrim').addEventListener('click', closeMenu);
+  d.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeMenu(); });
+
+  function findIndex() {
+    var out = [];
+    $$('#menugroups [data-go]').forEach(function (b) { if (!b.hidden) out.push({ label: $('.nav__label', b).textContent, sub: 'Go to', words: $('.nav__label', b).textContent, go: b.getAttribute('data-go') }); });
+    $$('#hometiles [data-go]').forEach(function (b) { var hit = out.filter(function (o) { return o.go === b.getAttribute('data-go'); })[0], sub = $('.tile__sub', b); if (hit && sub) hit.words += ' ' + sub.textContent; });
+    (state.schema || []).forEach(function (sec) {
+      if (sec.hidden) return;
+      out.push({ label: sec.label, sub: 'Section', words: sec.label + ' ' + (sec.help || ''), go: 'content/' + sec.key });
+      sec.fields.forEach(function (f) { out.push({ label: f.label, sub: sec.label, words: f.label + ' ' + (f.help || '') + ' ' + sec.label, field: sec.key + '.' + f.key, list: f.type === 'list' }); });
+    });
+    $$('#setuplist .task').forEach(function (t) { out.push({ label: $('h3', t).textContent, sub: 'Setup step', words: $('h3', t).textContent + ' ' + (($('.task__why', t) || {}).textContent || ''), task: t.getAttribute('data-task') }); });
+    return out;
+  }
+  function renderFind(q) {
+    var box = $('#menuresults'), groups = $('#menugroups');
+    q = String(q || '').trim().toLowerCase();
+    if (!q) { box.hidden = true; groups.hidden = false; box.innerHTML = ''; return; }
+    var words = q.split(/\s+/);
+    // a match in the name beats a match in the description (typing "phone" finds the Phone field first)
+    var hits = findIndex().map(function (o, i) {
+      var w = o.words.toLowerCase(), l = o.label.toLowerCase();
+      if (!words.every(function (x) { return w.indexOf(x) >= 0; })) return null;
+      return { o: o, score: (l === q ? 4 : 0) + (l.indexOf(q) === 0 ? 2 : 0) + (words.every(function (x) { return l.indexOf(x) >= 0; }) ? 1 : 0), i: i };
+    }).filter(Boolean).sort(function (a, b) { return b.score - a.score || a.i - b.i; }).slice(0, 12).map(function (x) { return x.o; });
+    box.innerHTML = ''; box.hidden = false; groups.hidden = true;
+    if (!hits.length) { box.appendChild(h('p', { class: 'muted tiny menu__none', text: 'Nothing called that. Try another word, or open Words and info.' })); return; }
+    hits.forEach(function (o) {
+      box.appendChild(h('button', { class: 'find', type: 'button', onclick: function () {
+        if (o.go) go(o.go);
+        else if (o.field) runAction('field', o.field);
+        else if (o.task) { go('setup', { keepScroll: true }); var t = $('.task[data-task="' + o.task + '"]'); if (t) { t.classList.add('is-open'); setTimeout(function () { t.scrollIntoView({ behavior: 'smooth', block: 'start' }); flash(t); }, 60); } }
+        closeMenu();
+      } }, [h('span', { class: 'find__label', text: o.label }), h('span', { class: 'find__sub', text: o.sub })]));
+    });
+  }
+  $('#menufind').addEventListener('input', function (e) { renderFind(e.target.value); });
+  $('#menufind').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var first = $('#menuresults .find'); if (first) { e.preventDefault(); first.click(); } } });
+
+  // Badges live wherever a place is listed (menu, dock, Home tiles).
+  function setBadge(name, n) { $$('[data-badge="' + name + '"]').forEach(function (p) { p.textContent = n ? String(n) : ''; }); }
 
   // ---------------------------------------------------------------- auth --
   $('#loginform').addEventListener('submit', async function (e) {
@@ -92,10 +187,10 @@
     } catch (err) { msg.className = 'login__msg bad'; msg.textContent = err.message; }
     btn.disabled = false;
   });
-  $('#logout').addEventListener('click', async function () {
+  $$('[data-logout]').forEach(function (b) { b.addEventListener('click', async function () {
     try { await api('POST', '/api/auth/logout', {}); } catch (_) {}
-    state.editor = null; showLogin();
-  });
+    state.editor = null; closeMenu(); showLogin();
+  }); });
 
   async function boot() {
     try { applySite((await api('GET', '/api/content')).site); } catch (_) {}
@@ -113,16 +208,20 @@
       try { state.editor = (await api('GET', '/api/auth/me')).editor; } catch (_) { showLogin(); return; }
     }
     await loadSite();
-    await loadBookingSummary();
+    await Promise.all([loadBookingSummary(), loadPayments({ quiet: true })]);
     showShell();
+    // Land where the link says (#bookings from an email, a reload on #content/hours …), else Home.
+    show(parseRoute(location.hash));
+    if (!location.hash) history.replaceState(null, '', '/admin/#home');
     landFromLink();
   }
   // Arriving from an email link (/admin/?toast=confirmed&booking=<id>#bookings).
   function landFromLink() {
     var params = new URLSearchParams(location.search), t = params.get('toast');
     var hash = location.hash;
-    if (t || hash === '#bookings') history.replaceState(null, '', '/admin/' + (hash === '#bookings' ? '#bookings' : ''));
-    if (hash === '#bookings' && $('[data-tab="bookings"]')) { setTab('bookings'); if (params.get('booking')) state.bookingFlash = params.get('booking'); }
+    if (t) history.replaceState(null, '', '/admin/' + (hash || '#home'));
+    // boot() has already shown #bookings; the card to highlight is picked up when the list arrives
+    if (hash === '#bookings' && params.get('booking')) state.bookingFlash = params.get('booking');
     var MSG = { confirmed: ['Confirmed.', 'ok'], declined: ['Declined.', 'ok'], 'link-used': ['That link was already used. The request is below.', ''], 'link-expired': ['That link expired. Confirm from the list below.', 'bad'], 'link-invalid': ['That link is not valid.', 'bad'] };
     if (!t) return;
     var m = MSG[t] || (t.indexOf('already-') === 0 ? ['That request is already ' + t.slice(8).replace('_', ' ') + '.', ''] : null);
@@ -154,6 +253,7 @@
     if (kind === 'media') return state.media.some(function (m) { return !m.is_placeholder; });
     if (kind === 'host') return !/\.netlify\.app$/i.test(location.hostname) && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
     if (kind === 'booking') return Boolean(state.bookings && state.bookings.self_test);
+    if (kind === 'stripe') return Boolean(state.payments && state.payments.connected && !state.payments.unreadable);
     return false;
   }
   function renderSetup() {
@@ -181,22 +281,12 @@
       $('i', bar).style.setProperty('--p', total ? done / total : 0);
       $('span', bar).textContent = !left ? 'All done. Your site is fully set up.' : done + ' of ' + total + ' done' + (next ? ' · next: ' + $('h3', next).textContent : '');
     }
-    var pill = $('#setupcount'); if (pill) pill.textContent = left ? String(left) : '';
+    setBadge('setupcount', left);
     state.setupOpen = left;
-    orderSetupTab(left);
+    state.setupNext = next ? $('h3', next).textContent : '';
+    state.setupDone = done; state.setupTotal = total;
     syncLooks();
-  }
-  // Setup goes first in the tab bar while there is work left, last when done;
-  // Bookings jumps ahead of everything while requests are waiting.
-  function orderSetupTab(left) {
-    var tab = $('[data-tab="setup"]');
-    if (tab) {
-      var nav = tab.parentNode;
-      if (left && nav.firstElementChild !== tab) nav.insertBefore(tab, nav.firstElementChild);
-      if (!left && nav.lastElementChild !== tab) nav.appendChild(tab);
-    }
-    var bk = $('[data-tab="bookings"]');
-    if (bk && state.bookings && state.bookings.requested && bk.parentNode.firstElementChild !== bk) bk.parentNode.insertBefore(bk, bk.parentNode.firstElementChild);
+    if (state.route === 'home') renderHome();
   }
   async function setTaskDone(id, on) {
     var set = {}; set['setup.' + id] = on;
@@ -223,10 +313,10 @@
   // (lib/checklist.mjs); here they just go somewhere.
   function flash(el) { if (!el) return; el.classList.remove('is-flash'); void el.offsetWidth; el.classList.add('is-flash'); setTimeout(function () { el.classList.remove('is-flash'); }, 1500); }
   function runAction(kind, target) {
-    if (kind === 'tab') { setTab(target); return; }
+    if (kind === 'tab') { go(target); return; }
     if (kind === 'section' || kind === 'field') {
-      setTab('content');
       var secKey = kind === 'field' ? target.split('.')[0] : target;
+      go('content/' + secKey);
       var sec = $('#sec-' + secKey);
       if (!sec) { toast('That section is not on this site', 'bad'); return; }
       var fld = kind === 'field' ? $('[data-path="' + target + '"]', sec) : null;
@@ -237,10 +327,17 @@
       return;
     }
     if (kind === 'site') { window.open(new URL(target, location.origin + '/').href, '_blank', 'noopener'); return; } // root-relative: never /admin/#hash
+    if (kind === 'copy') {
+      var copied = function () { toast('Copied: ' + target, 'ok'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(target).then(copied, function () { window.prompt('Copy this:', target); });
+      else window.prompt('Copy this:', target);
+      return;
+    }
     if (kind === 'looks') {
+      if ($('#panel-look')) { go('look'); return; }
       var grid = $('#panel-setup .looks') || $('#contentform .looks');
       if (!grid) return;
-      setTab(grid.closest('#panel-setup') ? 'setup' : 'content');
+      go(grid.closest('#panel-setup') ? 'setup' : 'content', { keepScroll: true });
       grid.scrollIntoView({ behavior: 'smooth', block: 'center' }); flash(grid);
     }
   }
@@ -264,6 +361,11 @@
     var node = d.importNode(looksTpl.content, true).firstElementChild;
     markLive(node, value || currentLook());
     return node;
+  }
+  // The Look screen: the same cards, on their own page.
+  function mountLooks() {
+    var host = $('#lookhost'); if (!host || !looksTpl || host.firstChild) { syncLooks(); return; }
+    host.appendChild(looksPicker());
   }
   async function useLook(id) {
     var set = {}; set[LOOKS_FIELD] = id;
@@ -390,8 +492,8 @@
   }
 
   function renderContent() {
-    var form = $('#contentform'), nav = $('#sidenav');
-    form.innerHTML = ''; nav.innerHTML = '';
+    var form = $('#contentform'), nav = $('#sidenav'), index = $('#secindexlist');
+    form.innerHTML = ''; nav.innerHTML = ''; index.innerHTML = '';
     state.schema.forEach(function (section) {
       if (section.hidden) return; // engine-owned sections (the Setup checklist) have their own tab
       var sec = h('section', { class: 'sec', id: 'sec-' + section.key });
@@ -406,8 +508,10 @@
       });
       if (grid.children.length) sec.appendChild(grid);
       form.appendChild(sec);
-      nav.appendChild(h('a', { href: '#sec-' + section.key, text: section.label }));
+      nav.appendChild(h('a', { href: '#content/' + section.key, 'data-go': 'content/' + section.key, text: section.label }));
+      index.appendChild(h('button', { class: 'secrow', type: 'button', 'data-go': 'content/' + section.key }, [h('strong', { text: section.label }), section.help ? h('span', { text: section.help }) : null]));
     });
+    if (state.route === 'content') focusSection(parseRoute(location.hash).sec, { noScroll: true });
     // active side link
     if ('IntersectionObserver' in window) {
       var io = new IntersectionObserver(function (entries) {
@@ -416,6 +520,19 @@
       $$('.sec', form).forEach(function (s) { io.observe(s); });
     }
   }
+
+  // Words and info: on a phone, a list of sections first, then one section at
+  // a time with "‹ All sections"; on a computer, everything with the side
+  // menu, scrolled to the section asked for.
+  function focusSection(key, opts) {
+    var panel = $('#panel-content'), sec = key ? $('#sec-' + key) : null;
+    if (key && !sec) key = '';
+    panel.setAttribute('data-focus', key || '');
+    $$('.sec', panel).forEach(function (x) { x.classList.toggle('is-focus', x === sec); });
+    $('#secback').hidden = !key;
+    if (sec && !(opts && opts.noScroll)) setTimeout(function () { sec.scrollIntoView({ behavior: PHONE.matches ? 'auto' : 'smooth', block: 'start' }); }, 30);
+  }
+  $('#secback').addEventListener('click', function () { go('content'); });
 
   $('#publish').addEventListener('click', async function () {
     var btn = $('#publish'); btn.disabled = true; btn.textContent = 'Publishing…';
@@ -436,7 +553,7 @@
 
   function renderMedia() {
     var grid = $('#mediagrid'); grid.innerHTML = '';
-    $('#mediacount').textContent = state.media.length || '';
+    setBadge('mediacount', state.media.length);
     var hasPh = state.media.some(function (m) { return m.is_placeholder; });
     $('#removeplaceholders').hidden = !hasPh;
     var dl = h('datalist', { id: 'cats' }, categories().map(function (c) { return h('option', { value: c }); }));
@@ -595,6 +712,144 @@
   ['dragleave', 'drop'].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('is-over'); }); });
   dz.addEventListener('drop', function (e) { if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files); });
 
+
+  // ----------------------------------------------------------------- home --
+  // What needs the owner now, then a tile for every place. Rendered from
+  // what is already loaded (bookings summary, setup progress, Stripe status).
+  function homeCard(cls, kids) { return h('article', { class: 'hcard ' + (cls || '') }, kids); }
+  function renderHome() {
+    var box = $('#homecards'); if (!box) return;
+    box.innerHTML = '';
+    var bk = state.bookings;
+    if ($('#panel-bookings')) {
+      var waiting = bk && bk.requested ? bk.requested : 0;
+      var next = bk && bk.next ? bk.next : null, tz = bk && bk.tz ? bk.tz : undefined;
+      var nextLine = null;
+      if (next) {
+        var day = '', time = '';
+        try { day = new Date(next.starts_at).toLocaleDateString(undefined, { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' }); time = next.window || new Date(next.starts_at).toLocaleTimeString(undefined, { timeZone: tz, hour: 'numeric', minute: '2-digit' }); } catch (_) {}
+        nextLine = h('p', { class: 'hcard__line' }, [h('span', { class: 'muted', text: 'Next job: ' }), day + ' · ' + time + ' · ' + next.name + (next.service_label ? ' (' + next.service_label + ')' : '')]);
+      }
+      box.appendChild(homeCard(waiting ? 'hcard--hot' : '', [
+        h('p', { class: 'hcard__k', text: 'Bookings' }),
+        h('p', { class: 'hcard__big' }, [h('b', { text: String(waiting) }), waiting === 1 ? ' request waiting for you' : waiting ? ' requests waiting for you' : ' requests waiting. All caught up.']),
+        nextLine || h('p', { class: 'hcard__line muted', text: bk && bk.upcoming ? bk.upcoming + ' confirmed coming up.' : 'Nothing confirmed coming up yet.' }),
+        h('div', { class: 'row' }, [
+          h('button', { class: 'btn btn--primary btn--sm', type: 'button', 'data-go': 'bookings', text: waiting ? 'Answer requests' : 'Open bookings' }),
+          h('button', { class: 'btn btn--ghost btn--sm', type: 'button', text: '+ Add a booking', onclick: function () { go('bookings'); setTimeout(function () { var f = $('#bkadd'); if (f && f.hidden) $('#bkaddbtn').click(); }, 80); } }),
+          h('button', { class: 'btn btn--ghost btn--sm', type: 'button', 'data-go': 'content/calendar', text: 'Hours and days off' }),
+        ]),
+      ]));
+    }
+    if (state.setupOpen && $('#panel-setup')) {
+      var bar = h('i'); bar.style.setProperty('--p', state.setupTotal ? state.setupDone / state.setupTotal : 0);
+      box.appendChild(homeCard('', [
+        h('p', { class: 'hcard__k', text: 'Setup' }),
+        h('p', { class: 'hcard__big' }, [h('b', { text: String(state.setupDone || 0) }), ' of ' + state.setupTotal + ' done']),
+        h('div', { class: 'setup__progress' }, [bar]),
+        state.setupNext ? h('p', { class: 'hcard__line' }, [h('span', { class: 'muted', text: 'Next: ' }), state.setupNext]) : null,
+        h('div', { class: 'row' }, [h('button', { class: 'btn btn--primary btn--sm', type: 'button', 'data-go': 'setup', text: 'Continue setup' })]),
+      ]));
+    }
+    if ($('#panel-payments')) {
+      var pay = state.payments, on = pay && pay.connected && !pay.unreadable;
+      box.appendChild(homeCard(on ? '' : 'hcard--todo', [
+        h('p', { class: 'hcard__k', text: 'Payments' }),
+        h('p', { class: 'hcard__big' }, [on ? h('b', { class: 'ok', text: '✓ ' }) : null, !pay ? 'Checking Stripe…' : on ? 'Stripe is connected' + (pay.mode === 'test' ? ' (test mode)' : '') : 'Stripe is not connected']),
+        h('p', { class: 'hcard__line muted', text: !pay ? '' : on ? (pay.account_name ? pay.account_name + ' · ' : '') + (pay.charges_enabled === false ? 'Stripe is still checking your account.' : 'Customers can pay ' + pay.purpose + '.') : 'Connect it and customers can pay ' + (pay.purpose || 'you') + ' online. About five minutes.' }),
+        h('div', { class: 'row' }, [h('button', { class: 'btn btn--sm ' + (on ? 'btn--ghost' : 'btn--primary'), type: 'button', 'data-go': 'payments', text: on ? 'See payments' : 'Connect Stripe' })]),
+      ]));
+    }
+    var look = LOOKS.length ? LOOKS.filter(function (l) { return l.id === currentLook(); })[0] : null;
+    box.appendChild(homeCard('', [
+      h('p', { class: 'hcard__k', text: 'Your site' }),
+      h('p', { class: 'hcard__big' }, [location.host]),
+      h('p', { class: 'hcard__line muted', text: (state.media.length ? state.media.length + ' photos' : 'No photos yet') + (look ? ' · Look: ' + look.label : '') + (state.dirty ? ' · You have unpublished changes' : '') }),
+      h('div', { class: 'row' }, [
+        h('a', { class: 'btn btn--ghost btn--sm', href: '/', target: '_blank', rel: 'noopener', text: 'View site ↗' }),
+        h('button', { class: 'btn btn--ghost btn--sm', type: 'button', 'data-go': 'content', text: 'Edit words' }),
+        LOOKS.length ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', 'data-go': 'look', text: 'Change the look' }) : null,
+      ]),
+    ]));
+  }
+
+  // ------------------------------------------------------------- payments --
+  // /admin/ → Payments (config.payments): status from /api/admin/payments,
+  // the paste box, connect / check again / disconnect. The key is posted once
+  // and never comes back.
+  async function loadPayments(opts) {
+    if (!$('#panel-payments')) return;
+    try { state.payments = await api('GET', '/api/admin/payments'); }
+    catch (err) { if (!(opts && opts.quiet)) toast(err.message, 'bad'); state.payments = state.payments || null; }
+    renderPayments();
+  }
+  function payDate(iso) { try { return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch (_) { return iso; } }
+  function renderPayments() {
+    var p = state.payments, box = $('#paystatus'), form = $('#payconnect');
+    if (!box) return;
+    var on = p && p.connected && !p.unreadable;
+    setBadge('paycount', p && !on ? '!' : '');
+    renderSetup();
+    if (state.route === 'home') renderHome();
+    box.innerHTML = '';
+    if (!p) { box.appendChild(h('p', { class: 'muted', text: 'Could not reach the site. Pull to refresh in a moment.' })); return; }
+    if (on) {
+      var chips = h('div', { class: 'bk__chips' }, [
+        h('span', { class: 'bk__chip ' + (p.mode === 'live' ? 'bk__chip--ok' : 'bk__chip--warn'), text: p.mode === 'live' ? 'Live: real money' : 'Test mode: pretend money' }),
+        p.account_name ? h('span', { class: 'bk__chip', text: p.account_name }) : null,
+        p.last4 ? h('span', { class: 'bk__chip', text: (p.kind === 'restricted' ? 'Restricted key' : 'Key') + ' ••••' + p.last4 }) : null,
+      ]);
+      var card = h('article', { class: 'hcard pay__card' }, [
+        h('p', { class: 'hcard__big' }, [h('b', { class: 'ok', text: '✓ ' }), p.source === 'env' ? 'Stripe is connected by HAND' : 'Stripe is connected']),
+        chips,
+        p.charges_enabled === false ? h('p', { class: 'pay__warn', text: 'Stripe is still checking your account, so nobody can pay yet. Open Stripe and finish what it asks for (ID, bank account), then tap Check again.' }) : null,
+        p.deposit ? h('p', { class: 'hcard__line', text: 'When you confirm a booking, the customer gets a Pay link for the ' + p.deposit.label + ' deposit, and the time is held ' + p.deposit.holdHours + ' hours for it.' }) : null,
+        p.mode === 'test' ? h('p', { class: 'hcard__line muted', text: 'Try it: book on your site, confirm it here, and pay with the card 4242 4242 4242 4242. When it works, connect your live key (rk_live_) the same way.' }) : null,
+        p.source === 'env' ? h('p', { class: 'hcard__line muted', text: 'HAND set this up on the server. To change it, ask HAND.' }) : p.connected_at ? h('p', { class: 'hcard__line muted tiny', text: 'Connected ' + payDate(p.connected_at) + (p.connected_by ? ' by ' + p.connected_by : '') + '. Stripe tells the site the moment someone pays.' }) : null,
+        h('div', { class: 'row' }, [
+          h('a', { class: 'btn btn--primary btn--sm', href: p.dashboard, target: '_blank', rel: 'noopener', text: 'Open Stripe ↗' }),
+          p.source !== 'env' ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', text: 'Check again', onclick: async function (e) { e.target.disabled = true; try { state.payments = await api('POST', '/api/admin/payments/refresh', {}); renderPayments(); toast('Checked with Stripe.', 'ok'); } catch (err) { toast(err.message, 'bad'); e.target.disabled = false; } } }) : null,
+          p.canManage ? h('button', { class: 'btn btn--ghost btn--sm', type: 'button', text: 'Replace the key', onclick: function () { form.hidden = false; $('#paykey').focus(); form.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }) : null,
+          p.canManage ? h('button', { class: 'btn btn--ghost btn--sm btn--danger', type: 'button', text: 'Disconnect', onclick: async function (e) {
+            if (!confirm('Disconnect Stripe? Customers stop being asked to pay online until you connect it again. Money already paid stays in your Stripe account.')) return;
+            e.target.disabled = true;
+            try { state.payments = await api('DELETE', '/api/admin/payments'); renderPayments(); toast('Disconnected. Nobody is asked to pay online now.', 'ok'); } catch (err) { toast(err.message, 'bad'); e.target.disabled = false; }
+          } }) : null,
+        ]),
+      ]);
+      box.appendChild(card);
+      form.hidden = true;
+    } else {
+      if (p.unreadable) box.appendChild(h('p', { class: 'pay__warn', text: 'The saved Stripe key can no longer be opened (the site’s secret changed). Connect Stripe again below; nothing else is lost.' }));
+      else box.appendChild(h('p', { class: 'muted', text: 'Not connected yet. Three steps, about five minutes, all on your phone.' }));
+      if (!p.canStore) box.appendChild(h('p', { class: 'pay__warn', text: 'This site cannot store keys yet. Ask HAND to finish its setup first.' }));
+      if (!p.canManage) box.appendChild(h('p', { class: 'pay__warn', text: 'Only an owner can connect Stripe. Ask the owner of the site to sign in and do it here.' }));
+      form.hidden = false;
+    }
+    $('#payform').hidden = !p.canManage || !p.canStore;
+  }
+  if ($('#payform')) {
+    $('#payshow').addEventListener('click', function () { var k = $('#paykey'), show = k.type === 'password'; k.type = show ? 'text' : 'password'; this.textContent = show ? 'Hide' : 'Show'; });
+    $('#paypaste').addEventListener('click', async function () {
+      try { var t = await navigator.clipboard.readText(); if (t) { $('#paykey').value = t.trim(); $('#paymsg').className = 'pay__msg'; $('#paymsg').textContent = 'Pasted. Tap Connect Stripe.'; } }
+      catch (_) { $('#paykey').focus(); $('#paymsg').className = 'pay__msg'; $('#paymsg').textContent = 'Press and hold in the box, then tap Paste.'; }
+    });
+    $('#payform').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var key = $('#paykey').value.replace(/\s+/g, ''), msg = $('#paymsg'), btn = $('#paysubmit');
+      if (!key) { msg.className = 'pay__msg bad'; msg.textContent = 'Paste your Stripe key first.'; $('#paykey').focus(); return; }
+      btn.disabled = true; btn.textContent = 'Checking with Stripe…'; msg.className = 'pay__msg'; msg.textContent = '';
+      try {
+        state.payments = await api('POST', '/api/admin/payments/connect', { key: key });
+        $('#paykey').value = ''; $('#paykey').type = 'password'; $('#payshow').textContent = 'Show';
+        renderPayments();
+        toast(state.payments.mode === 'test' ? 'Connected in test mode. Try a booking with the 4242 card.' : state.payments.charges_enabled === false ? 'Connected. Stripe still has to finish checking your account before anyone can pay.' : 'Stripe is connected. Customers can pay now.', 'ok');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (err) { msg.className = 'pay__msg bad'; msg.textContent = err.message; }
+      btn.disabled = false; btn.textContent = 'Connect Stripe';
+    });
+  }
+
   // ------------------------------------------------------------- editors --
   async function loadEditors() {
     var ul = $('#editorlist'); ul.innerHTML = '';
@@ -647,8 +902,8 @@
   async function loadBookingSummary() {
     if (!bkPanel) return;
     try { state.bookings = await api('GET', '/api/admin/bookings/summary'); } catch (_) { state.bookings = null; }
-    var pill = $('#bookingcount'); if (pill) pill.textContent = state.bookings && state.bookings.requested ? String(state.bookings.requested) : '';
-    orderSetupTab(state.setupOpen);
+    setBadge('bookingcount', state.bookings && state.bookings.requested);
+    if (state.route === 'home') renderHome();
   }
   function bkTz() { return (BK.data && BK.data.tz) || undefined; }
   function bkDate(iso) { try { return new Intl.DateTimeFormat('en-CA', { timeZone: bkTz(), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso)); } catch (_) { return String(iso).slice(0, 10); } }
@@ -664,8 +919,8 @@
   async function loadBookings() {
     if (!bkPanel) return;
     try { BK.data = await api('GET', '/api/admin/bookings'); } catch (err) { toast(err.message, 'bad'); return; }
-    state.bookings = { requested: BK.data.requested.length, self_test: state.bookings ? state.bookings.self_test : false };
-    var pill = $('#bookingcount'); if (pill) pill.textContent = BK.data.requested.length ? String(BK.data.requested.length) : '';
+    state.bookings = Object.assign({}, state.bookings || {}, { requested: BK.data.requested.length });
+    setBadge('bookingcount', BK.data.requested.length);
     renderBookings();
     bkNotify(BK.data.notify, BK.data.deposit);
     bkFillAdd();
@@ -679,7 +934,8 @@
     p.className = 'muted bk-notify' + (list.length ? '' : ' is-bad');
     p.textContent = list.length ? 'Requests are emailed to: ' + list.join(', ') : 'Requests are emailed to nobody yet. Ask HAND to set the booking email for this site.';
     // the deposit: what is asked on confirm, and whether Stripe is wired yet
-    if (deposit) p.textContent += ' · Deposit on confirm: ' + bkMoney(deposit.amount, deposit.currency) + (deposit.enabled ? ' through Stripe, held ' + deposit.holdHours + ' h.' : '. Stripe is not connected yet, so nobody is asked for it until the keys are in.');
+    if (deposit) p.textContent += ' · Deposit on confirm: ' + bkMoney(deposit.amount, deposit.currency) + (deposit.enabled ? ' through Stripe, held ' + deposit.holdHours + ' h.' : '. Stripe is not connected yet, so nobody is asked for it until it is. ');
+    if (deposit && !deposit.enabled && $('#panel-payments')) p.appendChild(h('button', { class: 'btn btn--primary btn--sm bk-notify__btn', type: 'button', 'data-go': 'payments', text: 'Connect Stripe' }));
   }
   // "Add to my phone's calendar": a webcal: link the phone subscribes to in one tap.
   var feedLoaded = false;

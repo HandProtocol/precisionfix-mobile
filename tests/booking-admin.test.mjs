@@ -77,12 +77,13 @@ test('applyPaths replaces a list whole from an array and refuses scalars for lis
   assert.throws(() => applyPaths(sections, base, { 'cal.off': 'nope' }), /takes a list/);
 });
 
-test('the admin page carries the Bookings tab and panel exactly when the site has a calendar', () => {
+test('the admin page carries the Bookings place and panel exactly when the site has a calendar', () => {
   const html = renderAdminPage();
-  assert.equal(html.includes('data-tab="bookings"'), Boolean(BOOKING));
+  assert.equal(html.includes('data-go="bookings"'), Boolean(BOOKING));
+  assert.equal(html.includes('data-badge="bookingcount"'), Boolean(BOOKING));
   assert.equal(html.includes('id="panel-bookings"'), Boolean(BOOKING));
   if (BOOKING) {
-    for (const id of ['bknotify', 'bkadd', 'bkblock', 'bkstrip', 'bkrequested', 'bkconfirmed', 'bkpast', 'bkclosed', 'bookingcount']) assert.ok(html.includes(`id="${id}"`), id);
+    for (const id of ['bknotify', 'bkadd', 'bkblock', 'bkstrip', 'bkrequested', 'bkconfirmed', 'bkpast', 'bkclosed']) assert.ok(html.includes(`id="${id}"`), id);
     assert.match(html, /<option value="09:00">9:00 AM<\/option>/);
   }
 });
@@ -206,7 +207,8 @@ test('admin routes: list, summary, add by hand, PATCH actions, .ics; one-tap lin
     assert.equal(list.settings.mode, settingsFrom({}).mode);
     assert.deepEqual(list.notify, ['owner@handprotocol.org'], 'the tab shows who gets the request mails');
     const sum = await (await adminHandler(areq('/api/admin/bookings/summary'))).json();
-    assert.deepEqual(sum, { ok: true, requested: 2, upcoming: 1, self_test: true });
+    assert.deepEqual({ ...sum, next: undefined }, { ok: true, requested: 2, upcoming: 1, self_test: true, tz: BOOKING.tz, next: undefined });
+    assert.deepEqual(Object.keys(sum.next).sort(), ['ends_at', 'id', 'name', 'service_label', 'starts_at', 'window'], 'Home shows the next confirmed job');
     // add by hand → confirmed, source owner, customer emailed when an email is given
     const svc = list.services[0];
     const add = await (await adminHandler(areq('/api/admin/bookings', { method: 'POST', body: { service: svc.key, date: '2026-09-23', time: '14:00', duration: 90, name: 'Walk In', phone: '512', email: 'walkin@handprotocol.org', address: '9 Elm', city: list.cities[0] || 'Austin' } }))).json();

@@ -16,6 +16,7 @@ import { dueReminders, updateBooking } from './lib/booking-db.mjs';
 import { sendBookingEmail } from './lib/booking-email.mjs';
 import { manageToken } from './lib/booking-token.mjs';
 import { nudgeOverdueDeposits } from './lib/booking-deposit.mjs';
+import { loadStripeKeys } from './lib/stripe.mjs';
 
 export const REMINDER_HOURS = 24;
 const HOUR_MS = 3600 * 1000;
@@ -68,6 +69,7 @@ export async function runReminders({ now = new Date(), origin = site.productionU
 }
 
 export default async () => {
+  await loadStripeKeys(); // the overdue-deposit nudge needs the connected keys
   const r = await runReminders();
   // The deposit's hold: once it is over and the deposit is still unpaid, the
   // owner hears about it once (lib/booking-deposit.mjs). Never a cancel.

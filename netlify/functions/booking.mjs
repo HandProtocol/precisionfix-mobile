@@ -32,7 +32,7 @@ import { clientIp, handleError, html, json, readJson, sameOrigin } from './lib/h
 import { ownerActPage, ownerActPost } from './lib/booking-act.mjs';
 import { buildShare, carWords } from './lib/booking-car.mjs';
 import { depositEnabled, depositFieldsFor, depositOf, handleStripeEvent, startCheckout, syncFromSession } from './lib/booking-deposit.mjs';
-import { stripeWebhookConfigured, verifyWebhookSignature } from './lib/stripe.mjs';
+import { loadStripeKeys, stripeWebhookConfigured, verifyWebhookSignature } from './lib/stripe.mjs';
 
 const MAX_PER_IP_PER_HOUR = 6;
 const ACT_DAYS = 7;
@@ -268,6 +268,7 @@ export default async (req) => {
   const url = new URL(req.url);
   const m = req.method;
   try {
+    await loadStripeKeys(); // env keys, or the ones the owner connected in /admin/ → Payments
     if (url.pathname === '/booking/manage') return m === 'GET' ? await managePage(req, url) : json(405, { ok: false, error: 'GET only' });
     if (url.pathname === '/booking/pay') return m === 'GET' ? await payPage(req, url) : json(405, { ok: false, error: 'GET only' });
     if (url.pathname === '/calendar.ics') return m === 'GET' ? await feed(url) : json(405, { ok: false, error: 'GET only' });

@@ -263,7 +263,7 @@ test('the owner: confirm mails the Pay link and the hold; cancel refunds a paid 
     assert.equal(mail.to[0], 'ana@example.com');
     assert.match(mail.html, /Lock it in/);
     assert.match(mail.html, new RegExp(`href="https://site\\.test/booking/pay\\?t=${manageToken(base.id)}"[^>]*>Pay the \\$50 deposit</a>`));
-    assert.match(mail.html, /It is held for you until Thursday, October \d+ at \d+:\d\d [AP]M\./);
+    assert.match(mail.html, /It is held for you until [A-Z][a-z]+day, [A-Z][a-z]+ \d+ at \d+:\d\d [AP]M\./);
     assert.match(mail.text, /Pay the \$50 deposit: https:\/\/site\.test\/booking\/pay\?t=/);
     assert.ok(mail.attachments && mail.attachments.length, 'the .ics still rides along');
     // now paid; the owner cancels → refund

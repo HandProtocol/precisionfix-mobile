@@ -374,10 +374,12 @@ test('POST /api/booking stores a request with hashed tokens, emails the owner (o
     assert.ok(customer.html.includes(data.manage_url), 'customer mail carries the manage link');
     assert.equal(customer.attachments, undefined);
     // honeypot: says yes, stores nothing, mails nobody
-    const before = be.calls.sb.length;
+    // (the Stripe key loader may read the secrets table first; it never writes)
+    const touched = () => be.calls.sb.filter((c) => !c.path.includes('_secrets')).length;
+    const before = touched();
     const hp = await handler(req('/api/booking', { method: 'POST', body: { ...body, 'bot-field': 'spam' } }));
     assert.equal((await hp.json()).id, null);
-    assert.equal(be.calls.sb.length, before);
+    assert.equal(touched(), before);
     assert.equal(be.calls.mail.length, 2);
     // cross-origin
     const xo = await handler(req('/api/booking', { method: 'POST', body, headers: { origin: 'https://evil.test' } }));

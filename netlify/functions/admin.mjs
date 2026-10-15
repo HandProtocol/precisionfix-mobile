@@ -16,6 +16,7 @@
 //   POST   /api/admin/editors                  (owner) { email, role }
 //   DELETE /api/admin/editors/:id              (owner)
 //   *      /api/admin/bookings…                 the booking calendar (lib/booking-admin.mjs)
+//   *      /api/admin/payments…                 connect the owner's Stripe (lib/payments.mjs)
 //
 // Every successful write purges the CDN cache for the home page.
 
@@ -26,6 +27,8 @@ import { applyPaths } from './lib/sanitize.mjs';
 import { loadSite, toView } from './lib/content.mjs';
 import { handleError, json, readJson, requireEditor, sameOrigin } from './lib/http.mjs';
 import { adminBookings } from './lib/booking-admin.mjs';
+import { adminPayments } from './lib/payments.mjs';
+import { loadStripeKeys } from './lib/stripe.mjs';
 
 const ALLOWED_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif', 'image/gif': 'gif' };
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
@@ -230,6 +233,7 @@ export default async (req) => {
   try {
     const editor = await requireEditor(req);
     if (req.method !== 'GET' && !sameOrigin(req)) return json(403, { ok: false, error: 'Cross-origin request blocked' });
+    await loadStripeKeys(); // the Bookings tab and its deposit actions need the connected keys
     const url = new URL(req.url);
     const parts = url.pathname.replace(/^\/api\/admin\/?/, '').split('/').filter(Boolean);
     const [head, second, third] = parts;
@@ -285,6 +289,8 @@ export default async (req) => {
       const url2 = url;
       return await adminBookings(req, editor, parts.slice(1), url2);
     }
+
+    if (head === 'payments') return await adminPayments(req, editor, parts.slice(1));
 
     if (head === 'site' && m === 'GET') {
       const site = await loadSite();

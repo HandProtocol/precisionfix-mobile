@@ -13,6 +13,21 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
+**2026-10-15: admin portal + "Connect Stripe" built, tested, NOT deployed.** `/admin/` now opens on a **Home** screen: requests waiting, the next job, setup left, Stripe status, then a tile for every place. A menu (bottom sheet on the phone, with a Find box) and a five-button dock (Home · Bookings · Edit · Photos · Menu) replace the tab bar. **Payments** lets Alex paste one Stripe key, ideally restricted with Checkout Sessions, Refunds and Webhook Endpoints at Write. The site checks the key, creates the webhook for `/api/booking/stripe` itself, and seals both into `command.precisionfix_secrets`. From then on the $50 deposit flow switches on by itself, exactly as if the env keys were set. Env keys, if HAND ever sets them, still win. The Setup item "Connect Stripe for the $50 deposit" is now a **Connect Stripe** button and ticks itself.
+
+- Config: `payments` in `site.config.mjs`, `assetVersion` `20261015a`.
+- Tests: 160 pass.
+- Details and the engine side: `clients/_template/HANDOFF.md`, 2026-10-15.
+
+**To ship:**
+
+1. Apply `command/supabase/migrations/054_precisionfix_secrets.sql` (management API, record it).
+2. rsync to `~/Documents/precisionfix-site`, commit, and push `HEAD:main` as cryptokoh (auto-deploys).
+3. Sign in and connect an `rk_test_` key from a Stripe sandbox. Book, confirm, pay with 4242, and check the chip says paid.
+4. Then send Alex: "Open your editor → Payments → follow the three steps."
+
+`productionUrl` here is still the old precisionfix-austin.netlify.app address (canonical / sitemap / email links); switch it to https://precisionfixmobile.com when koH OKs.
+
 **2026-09-17 checkpoint: LIVE** (`assetVersion` `20260917a`, deploy
 `6aac3af92e2dc1f6115115f8`; to roll back, republish
 `6aab30174ca4af1b8e337215` in the Netlify UI, the new column is harmless to

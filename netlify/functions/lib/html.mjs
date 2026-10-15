@@ -37,6 +37,13 @@ export function instagramUrl(handle) {
   return h ? `https://instagram.com/${encodeURIComponent(h)}` : '';
 }
 
+// <link rel="icon"> for the site's icon (config.favicon). An SVG gets its type.
+export function faviconLink(href) {
+  const h = String(href || '');
+  if (!h) return '';
+  return `<link rel="icon"${/\.svg(\?|#|$)/i.test(h) ? ' type="image/svg+xml"' : ''} href="${escapeHtml(h)}">`;
+}
+
 export function jsonForScript(value) {
   // Safe to embed inside <script type="application/json">.
   return JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');

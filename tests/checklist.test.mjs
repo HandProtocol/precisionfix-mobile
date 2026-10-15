@@ -135,3 +135,14 @@ test('looksHtml renders one card per look with swatch variables, preview + use b
   assert.match(html, /<span class="look__label">Redline<\/span><span class="look__live">Live<\/span>/);
   assert.equal(looksHtml(null), '');
 });
+
+test('a copy button carries the site or sitemap address from productionUrl, or its literal text', async () => {
+  const { checklistHtml, copyValue } = await import('../netlify/functions/lib/checklist.mjs');
+  const { config } = await import('../netlify/functions/lib/config.mjs');
+  assert.equal(copyValue('site', 'https://example.org'), 'https://example.org/');
+  assert.equal(copyValue('sitemap', 'https://example.org'), 'https://example.org/sitemap.xml');
+  const html = checklistHtml([{ id: 'sc', title: 'S', actions: [{ label: 'Copy your address', kind: 'copy', target: 'site' }, { label: 'Copy', kind: 'copy', target: 'sitemap.xml' }, { label: 'Bad', kind: 'copy', target: '' }] }]);
+  assert.ok(html.includes(`data-action-kind="copy" data-action-target="${config.productionUrl}/"`));
+  assert.ok(html.includes('data-action-target="sitemap.xml"'));
+  assert.equal(html.includes('>Bad<'), false);
+});

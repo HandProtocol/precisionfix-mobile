@@ -206,13 +206,18 @@ export const CHECKLIST = [
   {
     id: 'payments',
     title: 'Connect Stripe for the $50 deposit',
-    why: 'When you confirm a booking, the customer gets a Pay link for a $50 deposit that comes off the bill (refunded only if you cancel). The money goes to your own Stripe account, so Stripe needs to know you.',
-    actions: [{ label: 'Create a Stripe account', kind: 'url', target: 'https://dashboard.stripe.com/register' }],
-    phone: [
-      'Tap **Create a Stripe account**. It asks for your ID, your business details, and the bank account your deposits are paid out to.',
-      'Once Stripe says the account is active, open **Developers → API keys** and send HAND the **Secret key** (it starts with sk_live_). Never paste it anywhere else.',
-      'HAND adds the key and a webhook to the site. Until then nobody is asked for a deposit; the calendar works as before.',
+    why: 'When you confirm a booking, the customer gets a Pay link for a $50 deposit that comes off the bill (refunded only if you cancel). The money goes straight to your own Stripe account. Until Stripe is connected nobody is asked for a deposit; the calendar works as before.',
+    actions: [
+      { label: 'Connect Stripe', kind: 'tab', target: 'payments' },
+      { label: 'Create a Stripe account', kind: 'url', target: 'https://dashboard.stripe.com/register' },
     ],
-    done: 'The Bookings tab says "Deposit on confirm: $50 through Stripe", and a test booking shows the Pay link in its confirmation email.',
+    check: { kind: 'stripe' },
+    phone: [
+      'Tap **Connect Stripe**. The Payments screen walks you through it in three steps.',
+      'No Stripe account yet? Tap **Create a Stripe account** first. It asks for your ID, your business details, and the bank account your deposits are paid out to.',
+      'In Stripe, make a restricted key for the website (Checkout Sessions, Refunds and Webhook Endpoints set to Write), copy it, and paste it on the Payments screen. The site sets up the rest.',
+    ],
+    ask: 'Make the key, then send it to HAND in a private message (never by email), and HAND connects it for you.',
+    done: 'Ticks itself: the Payments screen says "Stripe is connected", and a test booking you confirm shows the Pay link in its email.',
   },
 ];

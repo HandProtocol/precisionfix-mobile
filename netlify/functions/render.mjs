@@ -5,11 +5,13 @@ import { config as site } from './lib/config.mjs';
 import { loadSite } from './lib/content.mjs';
 import { renderPage } from './lib/site.mjs';
 import { escapeHtml } from './lib/html.mjs';
+import { loadStripeKeys } from './lib/stripe.mjs';
 
 export default async (req) => {
   const url = new URL(req.url);
   const origin = `${url.protocol}//${url.host}`;
   try {
+    await loadStripeKeys(); // the deposit copy shows only once Stripe is connected
     const { content, media } = await loadSite();
     // `url` lets a pack honour ?theme=<id> previews; the CDN varies on it.
     const html = renderPage({ content, media, origin, url });

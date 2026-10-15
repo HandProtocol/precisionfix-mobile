@@ -18,7 +18,7 @@ export default {
   supabase: { projectRef: 'vconmgerblqbworcqkvr', schema: 'command' },
 
   // Bump whenever public/assets/** change (site + admin assets both carry it).
-  assetVersion: '20261014d',
+  assetVersion: '20261015a',
 
   fonts: base.fonts,
 
@@ -65,6 +65,17 @@ export default {
   // PRECISIONFIX_BOOKING_NOTIFY (or PRECISIONFIX_FORM_NOTIFY, the older
   // name) → PRECISIONFIX_OWNER_EMAILS. Replaced the Netlify Form on 2026-09-16.
   booking: BOOKING,
+
+  // /admin/ → Payments: Alex pastes a Stripe key once; the engine checks it,
+  // creates the webhook for /api/booking/stripe and seals both into
+  // command.precisionfix_secrets (migration 054). Env keys, if HAND sets them,
+  // win. Until it is connected nobody is asked for the deposit.
+  payments: {
+    webhookPath: '/api/booking/stripe',
+    events: ['checkout.session.completed'],
+    permissions: ['Checkout Sessions', 'Refunds', 'Webhook Endpoints'],
+    purpose: 'the $50 booking deposit',
+  },
 
   madeBy: { label: 'Made by HAND', href: 'https://handprotocol.org' },
 };

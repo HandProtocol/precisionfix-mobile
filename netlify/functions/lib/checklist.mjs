@@ -7,17 +7,22 @@
 // Item shape (site/checklist.mjs, imported by site.config.mjs):
 //   { id: 'domain', title: 'Point your domain at the site', why: '…',
 //     actions: [{ label, kind, target }],   // buttons under the steps; kinds:
-//       tab      target: content | media | editors | history | setup | bookings
+//       tab      target: home | content | media | look | payments | editors | history | setup | bookings
+//                                               (look = the Looks picker screen, payments = connect Stripe)
 //       section  target: '<section key>'        (Content tab, scroll + highlight)
 //       field    target: '<section>.<field>'    (…and focus the input)
 //       site     target: '#hash' or '/path'     (opens the live site in a new tab; '#hash' means '/#hash', never the admin page)
 //       url      target: 'https://…'            (external, new tab)
 //       looks    (no target)                    (jumps to the Looks picker)
+//       copy     target: 'site' | 'sitemap' | any short text
+//                                               (copies the site's address, its sitemap
+//                                               address, or the text; the owner never types a URL)
 //     check: { kind, path?, value? },         // ticks itself when true:
 //       field    path non-empty   value  path equals value
 //       media    a real (non-placeholder) photo exists
 //       host     the admin is served on a host that is not *.netlify.app
 //       booking  a booking exists from one of the editors' emails (the owner's own test)
+//       stripe   Stripe is connected (config.payments; /admin/ → Payments, or keys set by HAND)
 //     embed: 'looks',                          // the Looks picker inside the task
 //     phone: ['step', …],                      // fallback prose, phone first
 //     desktop: ['step', …],                    // optional: from a computer
@@ -30,9 +35,9 @@ import { escapeHtml as e } from './html.mjs';
 
 const ID_RE = /^[a-z][a-z0-9_]*$/;
 const PATH_RE = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
-const TABS = new Set(['content', 'media', 'editors', 'history', 'setup', 'bookings']);
-const ACTION_KINDS = new Set(['tab', 'section', 'field', 'site', 'url', 'looks']);
-const CHECK_KINDS = new Set(['field', 'value', 'media', 'host', 'booking']);
+const TABS = new Set(['home', 'content', 'media', 'look', 'payments', 'editors', 'history', 'setup', 'bookings']);
+const ACTION_KINDS = new Set(['tab', 'section', 'field', 'site', 'url', 'looks', 'copy']);
+const CHECK_KINDS = new Set(['field', 'value', 'media', 'host', 'booking', 'stripe']);
 
 function normalizeAction(a) {
   if (!a || !ACTION_KINDS.has(a.kind) || !a.label) return null;
@@ -46,6 +51,7 @@ function normalizeAction(a) {
     : a.kind === 'field' ? PATH_RE.test(target)
     : a.kind === 'site' ? /^[#/]\S*$/.test(target)
     : a.kind === 'url' ? /^https?:\/\/\S+$/.test(target)
+    : a.kind === 'copy' ? target.trim().length > 0 && target.length <= 200
     : true;
   return ok ? { label: String(a.label), kind: a.kind, target } : null;
 }
@@ -124,6 +130,15 @@ function steps(list, label) {
   return `<div class="task__how"><h4>${e(label)}</h4><ol>${list.map((s) => `<li>${inline(s)}</li>`).join('')}</ol></div>`;
 }
 
+// What a copy button puts on the clipboard: the site's own address or its
+// sitemap address (from config.productionUrl, so it moves with the domain),
+// or the literal text.
+export function copyValue(target, productionUrl = config.productionUrl) {
+  if (target === 'site') return `${productionUrl}/`;
+  if (target === 'sitemap') return `${productionUrl}/sitemap.xml`;
+  return target;
+}
+
 function actionsHtml(list) {
   if (!list.length) return '';
   // url + site are real links (new tab, no JS needed); the rest are buttons
@@ -131,7 +146,7 @@ function actionsHtml(list) {
   const btn = (a, i) =>
     a.kind === 'url' || a.kind === 'site'
       ? `<a class="btn ${i ? 'btn--ghost' : 'btn--primary'} btn--sm" href="${e(a.target)}" target="_blank" rel="noopener">${e(a.label)} ↗</a>`
-      : `<button type="button" class="btn ${i ? 'btn--ghost' : 'btn--primary'} btn--sm" data-action-kind="${e(a.kind)}" data-action-target="${e(a.target)}">${e(a.label)}</button>`;
+      : `<button type="button" class="btn ${i ? 'btn--ghost' : 'btn--primary'} btn--sm" data-action-kind="${e(a.kind)}" data-action-target="${e(a.kind === 'copy' ? copyValue(a.target) : a.target)}">${e(a.label)}</button>`;
   return `<div class="task__actions">${list.map(btn).join('')}</div>`;
 }
 

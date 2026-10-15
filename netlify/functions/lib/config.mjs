@@ -143,7 +143,9 @@ export function normalizePricing(p) {
 //   amount      integer minor units (cents); 50 dollars = 5000
 //   hold_hours  how long a confirmed time is held for payment before the owner is nudged
 //   credited    true: the deposit comes off the final bill (the emails say so)
-// Keys: <PREFIX>_STRIPE_SECRET_KEY + <PREFIX>_STRIPE_WEBHOOK_SECRET (siteEnv).
+// Keys: the owner connects Stripe in /admin/ → Payments (config.payments,
+// lib/payments.mjs), or HAND sets <PREFIX>_STRIPE_SECRET_KEY +
+// <PREFIX>_STRIPE_WEBHOOK_SECRET in env (env wins). lib/stripe.mjs reads both.
 export function normalizeDeposit(d) {
   if (!d || typeof d !== 'object') return null;
   const amount = Math.round(Number(d.amount));
@@ -156,6 +158,29 @@ export function normalizeDeposit(d) {
     holdHours: Math.min(24 * 14, Math.max(1, Number(d.hold_hours) || 24)),
     credited: d.credited === undefined ? true : Boolean(d.credited),
   };
+}
+
+// config.payments: the owner connects their OWN Stripe account in /admin/ →
+// Payments (lib/payments.mjs): they paste one key, the engine checks it with
+// Stripe, creates the webhook endpoint for them, and seals both into
+// <prefix>_secrets (lib/secrets.mjs). The money never passes through HAND.
+// null = no Payments screen and no secrets table.
+//   { provider: 'stripe',                         the only one today
+//     webhookPath: '/api/booking/stripe',          the site route that verifies Stripe's events
+//     events: ['checkout.session.completed'],      what that route handles
+//     permissions: ['Checkout Sessions', …],       restricted-key rows set to Write (the owner's instructions)
+//     purpose: 'the $50 deposit' }                 said on the Payments screen ("Stripe takes <purpose>")
+export function normalizePayments(p) {
+  if (!p) return null;
+  must(typeof p === 'object', 'payments must be an object');
+  const provider = String(p.provider || 'stripe');
+  must(provider === 'stripe', 'payments.provider: only stripe is supported');
+  const webhookPath = String(p.webhookPath || '/api/booking/stripe');
+  must(/^\/[a-z0-9/_-]+$/i.test(webhookPath), 'payments.webhookPath must be a path on the site');
+  const events = Array.isArray(p.events) && p.events.length ? p.events.map(String) : ['checkout.session.completed'];
+  events.forEach((ev) => must(/^[a-z_.]+$/.test(ev), `payments.events: bad event ${ev}`));
+  const permissions = Array.isArray(p.permissions) && p.permissions.length ? p.permissions.map(String) : ['Checkout Sessions', 'Refunds', 'Webhook Endpoints'];
+  return { provider, webhookPath, events, permissions, purpose: String(p.purpose || 'payments') };
 }
 
 export function normalizeConfig(c) {
@@ -176,6 +201,8 @@ export function normalizeConfig(c) {
     productionUrl: String(c.productionUrl || `https://${slug}.netlify.app`).replace(/\/$/, ''),
     supabase: { projectRef: '', schema: 'command', ...(c.supabase || {}) },
     assetVersion: c.assetVersion || '1',
+    // The site's icon, linked from every engine-rendered page (admin, headTags()).
+    favicon: String(c.favicon || '/favicon.svg'),
     fonts: { googleCss: '', display: 'system-ui, sans-serif', body: 'system-ui, sans-serif', ...(c.fonts || {}) },
     logo: c.logo || '',
     nav: Array.isArray(c.nav) ? c.nav : [],
@@ -190,6 +217,8 @@ export function normalizeConfig(c) {
     themes: normalizeThemes(c.themes, c.theme),
     // Booking calendar (see normalizeBooking above). null = none.
     booking: normalizeBooking(c.booking),
+    // Owner-connected Stripe (see normalizePayments above). null = none.
+    payments: normalizePayments(c.payments),
     tables: {
       editors: `${dbPrefix}_editors`,
       login_tokens: `${dbPrefix}_login_tokens`,
@@ -197,6 +226,8 @@ export function normalizeConfig(c) {
       media: `${dbPrefix}_media`,
       revisions: `${dbPrefix}_revisions`,
       bookings: `${dbPrefix}_bookings`,
+      // only with config.payments: an unknown {secrets} placeholder throws in lib/db.mjs
+      ...(c.payments ? { secrets: `${dbPrefix}_secrets` } : {}),
     },
     bucket: slug,
     cacheTag: slug,
@@ -209,6 +240,8 @@ export const TABLES = config.tables;
 export const BUCKET = config.bucket;
 // The booking calendar in request mode, or null (absent / external mode).
 export const BOOKING = config.booking && config.booking.mode === 'request' ? config.booking : null;
+// Owner-connected payments (the Payments screen in /admin/), or null.
+export const PAYMENTS = config.payments;
 
 // Resolves a config list that may be a function of the content document.
 export function resolveList(v, content) {

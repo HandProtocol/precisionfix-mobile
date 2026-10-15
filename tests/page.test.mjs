@@ -210,7 +210,7 @@ test('the Search Console code becomes a meta tag; the schema carries the hidden 
   assert.deepEqual(setup.fields.map((f) => f.key), CHECKLIST.map((i) => i.id));
   assert.equal(sanitize({ setup: { domain: true } }).setup.domain, true);
   const admin = renderAdminPage();
-  assert.match(admin, /data-tab="setup"/);
+  assert.match(admin, /data-go="setup"/);
   for (const it of CHECKLIST) assert.ok(admin.includes(`data-setup="${it.id}"`), it.id);
   assert.match(admin, /Namecheap/);
   assert.equal(admin.includes('${'), false);

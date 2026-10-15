@@ -3,7 +3,7 @@
 // /api/admin/bookings routes admin.mjs delegates to.
 //
 //   GET   /api/admin/bookings?from&to          requested inbox (all), the range (all statuses), overlap, day counts, field labels
-//   GET   /api/admin/bookings/summary          { requested, upcoming, self_test } for the tab badge + the Setup tick
+//   GET   /api/admin/bookings/summary          { requested, upcoming, self_test, next, tz } for the badge, the Setup tick, Home
 //   GET   /api/admin/bookings/feed             { url, webcal } the owner's calendar-subscription link
 //   GET   /api/admin/bookings/:id.ics          one confirmed booking as .ics (owner's phone calendar)
 //   POST  /api/admin/bookings                  add a booking by hand → confirmed, source owner
@@ -235,7 +235,10 @@ async function summary() {
     sb('/{editors}?select=email'),
   ]);
   const selfTest = await hasBookingFromEmails((editors || []).map((e) => e.email)).catch(() => false);
-  return json(200, { ok: true, requested: requested.length, upcoming: upcoming.length, self_test: selfTest });
+  // the next confirmed job, for the admin's Home screen
+  const n = upcoming.slice().sort((x, y) => (x.starts_at < y.starts_at ? -1 : 1))[0];
+  const next = n ? { id: n.id, name: n.name, service_label: n.service_label, starts_at: n.starts_at, ends_at: n.ends_at, window: n.window || '' } : null;
+  return json(200, { ok: true, requested: requested.length, upcoming: upcoming.length, self_test: selfTest, next, tz: BOOKING.tz });
 }
 
 async function add(req, editor, origin) {
