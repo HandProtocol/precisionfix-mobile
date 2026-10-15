@@ -9,8 +9,8 @@ engine with the `hand-client-site` skill.
 **Status:** LIVE at https://precisionfix-austin.netlify.app since 2026-09-15
 (Netlify site `9f248232-981f-4a15-a891-a62f949f92fa`, account cryptokoh;
 `precisionfix.netlify.app` was taken by a stranger, hence `-austin`). Code
-also lives in the private repo **https://github.com/HandProtocol/precisionfix-site**
-(the owner's phone Claude Code works against that repo). Nothing in the
+also lives in the private repo **https://github.com/HandProtocol/precisionfix-mobile** (renamed from
+precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
 **2026-09-17 checkpoint: LIVE** (`assetVersion` `20260917a`, deploy
@@ -106,6 +106,52 @@ email), **Put your bookings on your phone's calendar**. Deployed by CLI,
 2026-09-16 night"). **The mirror repo was NOT synced or committed**
 (koH said do not commit): run the rsync recipe under "Where things are",
 then commit + push there as cryptokoh, before Alex edits from his phone.
+
+**2026-10-14 (late): LIVE on Alex's own Netlify, git auto-deploy, migrations
+052 + 053 APPLIED.** The site is Alex's old `percesionfix` Netlify site
+renamed **`precisionfix-mobile`** (id `5484bc97-9ef1-4d05-91f4-2bac9b46ae97`,
+team `alexb04-uti`, Free, badge off), custom domain
+**https://precisionfixmobile.com** (his, Netlify DNS, apex + www NETLIFY
+records). It auto-deploys from **https://github.com/HandProtocol/precisionfix-mobile**
+(the old `precisionfix-site` repo renamed and now PUBLIC, so Free Netlify
+builds it; publish `public`, functions per `netlify.toml`). Ship recipe:
+rsync this folder into `~/Documents/precisionfix-site` (recipe under "Where
+things are"; its remote already points at the new name), commit, push
+`HEAD:main` as cryptokoh; push `58b22fe` built and was live in under a
+minute. `.netlify/state.json` here points at the site for `netlify env:*` /
+API work; the CLI is logged in as Alex (`netlify login --new` done;
+`netlify switch` flips between Alex and cryptokoh). A CLI-made interim site
+(`513e88fb…`) was deleted by koH the same day.
+
+That push shipped EVERYTHING in this folder, including the sections below
+marked "NOT deployed" (conversion + search pass, the $50 deposit code and
+copy, the booking funnel, `assetVersion` `20261014b`). Because the deployed
+code selects the new columns, migrations **052_precisionfix_deposit** and
+**053_precisionfix_booking_car** were applied right after (management API,
+recorded in `supabase_migrations.schema_migrations`); the columns were
+absent for the few minutes in between. Verified live afterwards: `/`,
+`/admin/`, `/api/content` (viewer public, redline), days API, a real
+request (`POST /api/booking` → 200, `emailed: true`, row carried
+`deposit_status none`, `vin ''`, `self_report_ack false`), manage page 200;
+the test row (booking-test@handprotocol.org) was deleted. **Still open from
+the deposit section:** `PRECISIONFIX_STRIPE_SECRET_KEY` /
+`_STRIPE_WEBHOOK_SECRET` are NOT set, so the flow never asks for the $50
+while the page copy (steps, FAQ, form note, trust line) already promises
+it. Either set Alex's Stripe keys or soften the copy; the engine lift into
+`clients/_template` is also still owed.
+
+Env on the site: EMAIL_FROM, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+PRECISIONFIX_SITE_NAME / SESSION_SECRET / OWNER_EMAILS / FORM_NOTIFY copied
+from the cryptokoh site, and RESEND_API_KEY = a NEW send-only key scoped to
+handprotocol.org ("PrecisionFix Netlify (send-only)" in the HAND Resend
+account; it cannot list or mint keys). koH kept the shared HAND Supabase
+key for now ("we can just use hand key for now"). The cryptokoh site
+`precisionfix-austin.netlify.app` is still up on the same DB; delete it when
+koH says. The Setup checklist's GitHub / Claude Code promise (merges go
+live by themselves) is now true. If `precisionfixmobile.com` times out from
+this box while the netlify.app host works, it is the home router's DNS
+cache (it held Namecheap's parking IP 162.255.119.35 for ~25 min after the
+move); authoritative and public resolvers were already right.
 
 ## Start here (cold session)
 
