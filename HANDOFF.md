@@ -153,6 +153,31 @@ this box while the netlify.app host works, it is the home router's DNS
 cache (it held Namecheap's parking IP 162.255.119.35 for ~25 min after the
 move); authoritative and public resolvers were already right.
 
+**2026-10-14 (night): deposit copy gated on the Stripe key (koH: "we dont
+have stripe keys yet").** Commit `60190fe` in the mirror repo, auto-deployed,
+`assetVersion` `20261014c`, 147 tests. While `PRECISIONFIX_STRIPE_SECRET_KEY`
+is unset (`lib/stripe.mjs stripeConfigured()`), the page and the emails carry
+no deposit promise, and everything comes back by itself once the key is set:
+`pricingLines(booking, lang, { deposit: false })` leaves the deposit line
+out (the box says the $20 surcharge + "Work is $150.00 per hour"); the
+"Lock it in with a $50 deposit" step, the "Do I need to pay to book?"
+question (page and FAQPage JSON-LD) and the small print under the button
+are dropped by `site/page.mjs depositCopy()` (matched on the words
+dep[oó]sit, so the owner's own edits are covered); the owner's "What to
+expect" text in the confirmation + reminder emails loses the paragraphs
+that mention the deposit (`lib/booking.mjs withoutDepositTalk()`). The DB
+row was NOT edited: the stored `calendar.expect` (saved 2026-10-09 from the
+admin, EN + ES) still says "A $50 deposit is required to secure your
+appointment. Your booking is confirmed once payment is received."; it will
+be mailed again as soon as the Stripe key lands, which is right then. The
+stored small print "No payment needed to book. Deposits and online payment
+are coming soon." is the owner's and stays. The default `expect` in
+`site/booking.mjs` lost its deposit sentence. Engine files touched (lift
+into `clients/_template` with the rest of the deposit work):
+`lib/booking.mjs`, `lib/booking-form.mjs`, `lib/booking-pricing.mjs`.
+Verified live after the deploy: zero deposit words on the page, 3 steps,
+6 FAQ items, pricing = surcharge + hourly.
+
 ## Start here (cold session)
 
 1. Read this file, then `README.md` (owner section on top, engine doc below).
