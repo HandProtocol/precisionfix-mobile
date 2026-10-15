@@ -13,18 +13,23 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
-**2026-10-15: admin portal + "Connect Stripe" built, tested, NOT deployed.** `/admin/` now opens on a **Home** screen: requests waiting, the next job, setup left, Stripe status, then a tile for every place. A menu (bottom sheet on the phone, with a Find box) and a five-button dock (Home · Bookings · Edit · Photos · Menu) replace the tab bar. **Payments** lets Alex paste one Stripe key, ideally restricted with Checkout Sessions, Refunds and Webhook Endpoints at Write. The site checks the key, creates the webhook for `/api/booking/stripe` itself, and seals both into `command.precisionfix_secrets`. From then on the $50 deposit flow switches on by itself, exactly as if the env keys were set. Env keys, if HAND ever sets them, still win. The Setup item "Connect Stripe for the $50 deposit" is now a **Connect Stripe** button and ticks itself.
+**2026-10-15: admin portal + "Connect Stripe" LIVE** (koH: "apply and ship"). Migration 054 applied and recorded; table has RLS on and no anon or authenticated grants. Mirror commit `bc9581e` auto-deployed, `assetVersion` `20261015a`. Verified signed in on precisionfix-mobile.netlify.app at 390 wide, 15 of 15 checks:
+
+- lands on Home; dock 5; Payments screen with its 3 steps
+- `GET /api/admin/payments` reaches the table (`canStore`, owner `canManage`, not connected)
+- a `pk_` key is refused; a fake `rk_test_` key is rejected by Stripe itself; nothing was stored
+- Setup has the Connect Stripe button; the Bookings nudge shows; no overflow; no unexpected console errors
+
+**Stripe is still NOT connected**: Alex (or HAND with his key) does that on the Payments screen. Home showed **2 real requests waiting** at verification time. The custom domain timed out from this box (the known router DNS cache); the netlify.app host serves the same deploy. The text below was written before the ship: `/admin/` now opens on a **Home** screen: requests waiting, the next job, setup left, Stripe status, then a tile for every place. A menu (bottom sheet on the phone, with a Find box) and a five-button dock (Home · Bookings · Edit · Photos · Menu) replace the tab bar. **Payments** lets Alex paste one Stripe key, ideally restricted with Checkout Sessions, Refunds and Webhook Endpoints at Write. The site checks the key, creates the webhook for `/api/booking/stripe` itself, and seals both into `command.precisionfix_secrets`. From then on the $50 deposit flow switches on by itself, exactly as if the env keys were set. Env keys, if HAND ever sets them, still win. The Setup item "Connect Stripe for the $50 deposit" is now a **Connect Stripe** button and ticks itself.
 
 - Config: `payments` in `site.config.mjs`, `assetVersion` `20261015a`.
 - Tests: 160 pass.
 - Details and the engine side: `clients/_template/HANDOFF.md`, 2026-10-15.
 
-**To ship:**
+**Next:**
 
-1. Apply `command/supabase/migrations/054_precisionfix_secrets.sql` (management API, record it).
-2. rsync to `~/Documents/precisionfix-site`, commit, and push `HEAD:main` as cryptokoh (auto-deploys).
-3. Sign in and connect an `rk_test_` key from a Stripe sandbox. Book, confirm, pay with 4242, and check the chip says paid.
-4. Then send Alex: "Open your editor → Payments → follow the three steps."
+1. Connect an `rk_test_` key from a Stripe sandbox, book, confirm, pay with 4242, and check the chip says paid. This is the one path not yet run against real Stripe.
+2. Send Alex: "Open your editor → Payments → follow the three steps."
 
 `productionUrl` here is still the old precisionfix-austin.netlify.app address (canonical / sitemap / email links); switch it to https://precisionfixmobile.com when koH OKs.
 
