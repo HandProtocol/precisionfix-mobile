@@ -75,7 +75,7 @@ test('bookingBlock renders the four steps, fallbacks, intake, location, config j
   assert.match(html, /<input name="vin" type="text" maxlength="17"[^>]*data-upper/);
   assert.match(html, /<input name="car_model" type="text" maxlength="80"/);
   assert.match(html, /<fieldset class="form__group booking__issues" data-step="issues" hidden>/);
-  assert.match(html, /<p class="booking__notice" data-es="Lo que escriba aquí nos ayuda a planear, y lo leemos\. No es un diagnóstico\. PrecisionFix no se hace responsable de un autodiagnóstico, de la opinión de otro mecánico ni de información que le hayan sugerido\. Nuestra responsabilidad es por el trabajo que diagnosticamos nosotros primero y acordamos con usted\.">What you write here helps us plan, and we read it\. It is not a diagnosis\. PrecisionFix is not responsible for a self-diagnosis, another mechanic&#39;s opinion, or any information suggested to you\. Our responsibility is for the work we diagnose ourselves first and agree with you\.<\/p>/);
+  assert.match(html, /<p class="booking__notice" data-es="Lo que escriba aquí nos ayuda a planear, y lo leemos\. No es un diagnóstico\. PrecisionFix no se hace responsable de un autodiagnóstico, de la opinión de otro mecánico ni de información que le hayan sugerido, y no es responsable de ninguna reparación hecha sin un diagnóstico previo de PrecisionFix\. Nuestra responsabilidad es por el trabajo que diagnosticamos nosotros primero y acordamos con usted\.">What you write here helps us plan, and we read it\. It is not a diagnosis\. PrecisionFix is not responsible for a self-diagnosis, another mechanic&#39;s opinion, or any information suggested to you, and is not liable for any repair made without a diagnosis by PrecisionFix first\. Our responsibility is for the work we diagnose ourselves first and agree with you\.<\/p>/);
   assert.match(html, /<input type="checkbox" name="self_report_ack" value="true"><span data-es="He leído el aviso anterior y estoy de acuerdo">I have read the notice above and agree<\/span>/);
   // "symptom" and "diagnos" appear nowhere on the customer side but inside that notice
   const outsideNotice = html.replace(/<p class="booking__notice"[^>]*>[^<]*<\/p>/, '');
@@ -489,7 +489,7 @@ test('buildShare: the car saves vin / car_model; issues need the ticked agreemen
   assert.deepEqual(buildShare({ body: { vin: ' wdc0g8db5kf123456 ', car_model: '' } }), { vin: 'WDC0G8DB5KF123456', car_model: '' });
   assert.deepEqual(buildShare({ body: { car_model: ' 2019 GLE 350 ' } }), { vin: '', car_model: '2019 GLE 350' });
   assert.deepEqual(buildShare({ body: { issues: 'A squeal at idle', self_report_ack: true } }), { issues: 'A squeal at idle', self_report_ack: true, self_report_notice: SELF_REPORT_VERSION });
-  assert.deepEqual(buildShare({ body: { vin: 'WDC0G8DB5KF123456', issues: 'x', self_report_ack: 'true' } }), { vin: 'WDC0G8DB5KF123456', car_model: '', issues: 'x', self_report_ack: true, self_report_notice: 'self-report-2026-10-14' });
+  assert.deepEqual(buildShare({ body: { vin: 'WDC0G8DB5KF123456', issues: 'x', self_report_ack: 'true' } }), { vin: 'WDC0G8DB5KF123456', car_model: '', issues: 'x', self_report_ack: true, self_report_notice: SELF_REPORT_VERSION });
   const rej = (body, re, lang) => { try { buildShare({ body, lang }); assert.fail('should throw'); } catch (err) { assert.equal(err.status, 400); assert.match(err.message, re); } };
   rej({ issues: 'A noise' }, /Tick the box to send what you noticed\./);
   rej({ issues: 'A noise', self_report_ack: false }, /Tick the box/);
@@ -549,7 +549,7 @@ test('POST /api/booking/manage { action: share } saves the car onto the request,
     assert.match((await noEs.json()).error, /Marque la casilla/);
     // ticked: saved with the agreement and the notice's version
     const yes = await handler(req(`/api/booking/manage?t=${token}`, { method: 'POST', body: { action: 'share', issues: 'A squeal when braking', self_report_ack: true } }));
-    assert.deepEqual(await yes.json(), { ok: true, vin: 'WDC0G8DB5KF123456', car_model: '', issues: 'A squeal when braking', self_report_ack: true, self_report_notice: 'self-report-2026-10-14' });
+    assert.deepEqual(await yes.json(), { ok: true, vin: 'WDC0G8DB5KF123456', car_model: '', issues: 'A squeal when braking', self_report_ack: true, self_report_notice: SELF_REPORT_VERSION });
     assert.equal(row.self_report_ack, true);
     assert.equal(row.self_report_notice, SELF_REPORT_VERSION);
     assert.equal(be.calls.mail.length, mails, 'a share mails nobody');
@@ -578,4 +578,22 @@ test('the owner\'s "what to expect" loses its deposit paragraphs until the Strip
   assert.equal(withoutDepositTalk(text, true), text);
   assert.equal(withoutDepositTalk('Se requiere un depósito de $50.\n\nLe llamaré antes.', false), 'Le llamaré antes.');
   assert.equal(withoutDepositTalk('', false), '');
+});
+
+import { SYMPTOMS, symptomLabels } from '../netlify/functions/lib/booking-car.mjs';
+test('buildShare: picked symptoms become labels on top of the free text, in the customer language; unknown keys are dropped; picks alone need the agreement too', () => {
+  assert.equal(SYMPTOMS.length, 13);
+  assert.deepEqual(symptomLabels(['noise', 'nope', 'light'], 'en'), ['A warning light is on', 'A noise']);
+  assert.deepEqual(buildShare({ body: { noticed: ['light', 'noise'], issues: 'Since Monday', self_report_ack: true } }), { issues: 'A warning light is on, A noise\n\nSince Monday', self_report_ack: true, self_report_notice: SELF_REPORT_VERSION });
+  assert.deepEqual(buildShare({ body: { noticed: 'leak,bogus', self_report_ack: 'on' }, lang: 'es' }), { issues: 'Una fuga o un charco', self_report_ack: true, self_report_notice: SELF_REPORT_VERSION });
+  assert.throws(() => buildShare({ body: { noticed: ['leak'] } }), /Tick the box/);
+  assert.throws(() => buildShare({ body: { noticed: ['bogus'] } }), /Nothing to share yet/);
+});
+test('booking.js: a saved draft or request counts as fresh inside its window only', () => {
+  const H = widgetHelpers();
+  assert.equal(H.isFresh({ ts: 1000 }, 2000, 5000), true);
+  assert.equal(H.isFresh({ ts: 1000 }, 7000, 5000), false);
+  assert.equal(H.isFresh({ ts: 9000 }, 2000, 5000), false, 'a clock from the future is not trusted');
+  assert.equal(H.isFresh(null, 2000, 5000), false);
+  assert.equal(H.isFresh({}, 2000, 5000), false);
 });

@@ -45,7 +45,15 @@
   function fill(tpl, month) { return String(tpl || '').replace('{month}', month); }
   // Where the rail stands: 0 day and time, 1 details, 2 sent, 3 the car, 4 all done.
   function railPlace(step, shared) { return step === 'sent' ? (shared === 'done' ? 4 : 3) : step === 'details' ? 1 : 0; }
-  window.HandBookingCal = { firstOpenMonth: firstOpenMonth, coveredMonths: coveredMonths, emptyNote: emptyNote, fill: fill, shiftMonth: shiftMonth, railPlace: railPlace };
+  // A saved draft or sent request is worth restoring while it is younger than `maxAge`.
+  function isFresh(saved, now, maxAge) { return !!(saved && saved.ts && now - saved.ts >= 0 && now - saved.ts < maxAge); }
+  window.HandBookingCal = { firstOpenMonth: firstOpenMonth, coveredMonths: coveredMonths, emptyNote: emptyNote, fill: fill, shiftMonth: shiftMonth, railPlace: railPlace, isFresh: isFresh };
+
+  /* ---- memory across a refresh: the draft (a day) and the sent request (a week) ---- */
+  var DRAFT_KEY = 'hand-booking-draft', SENT_KEY = 'hand-booking-sent', DAY = 86400000;
+  function readStore(key) { try { return JSON.parse(window.localStorage.getItem(key) || 'null'); } catch (_) { return null; }
+  }
+  function writeStore(key, value) { try { if (value) window.localStorage.setItem(key, JSON.stringify(value)); else window.localStorage.removeItem(key); } catch (_) {} }
 
   var MAX_RANGE_DAYS = 62; // the days API answers at most this many days per call
   var d = document, root = d.documentElement;
@@ -158,6 +166,7 @@
         days.forEach(function (day) { var ym = day.date.slice(0, 7); if (months[ym]) months[ym][day.date] = day.times; });
         view = firstOpenMonth(days, cfg.today.slice(0, 7));
         refresh();
+        if (state.step !== 'sent') restoreDraft();
       })
       .catch(function () { refresh(); });
   }
@@ -209,12 +218,12 @@
   }
   function pick(date) {
     selected = date; selectedSlot = ''; selectedLabel = ''; dateInput.value = date; slotInput.value = '';
-    renderCal(); renderTimes(); renderRail();
+    renderCal(); renderTimes(); renderRail(); saveDraft();
     scrollTo($('[data-step=time]'));
   }
   // A time picked is the step done: the details slide in.
   function pickSlot(id, label) {
-    selectedSlot = id; selectedLabel = label; slotInput.value = id; renderTimes();
+    selectedSlot = id; selectedLabel = label; slotInput.value = id; renderTimes(); saveDraft();
     var service = $('[name=service]');
     if (service && service.type === 'radio' && !$('[name=service]:checked')) { fail(str('choose_service')); scrollTo($('[data-step=service]')); return; }
     show('details');
@@ -224,6 +233,56 @@
 
   /* ---- language changes re-render the dynamic parts ---- */
   if (window.MutationObserver) new MutationObserver(function () { renderCal(); renderTimes(); renderRail(); }).observe(root, { attributes: true, attributeFilter: ['lang'] });
+
+  /* ---- the draft: what is typed and picked, saved as it changes ---- */
+  var DRAFT_FIELDS = ['name', 'phone', 'email', 'contact_pref', 'address', 'city', 'notes'];
+  function fieldValue(k) { var i = $('[name=' + k + ']'); if (!i) return ''; if (i.type === 'radio') { var c = $('[name=' + k + ']:checked'); return c ? c.value : ''; } return i.value; }
+  function setField(k, v) { var i = $('[name=' + k + ']'); if (!i || v == null) return; if (i.type === 'radio') { var r = $('[name=' + k + '][value="' + String(v).replace(/"/g, '') + '"]'); if (r) r.checked = true; } else i.value = v; }
+  function saveDraft() {
+    var fields = {}; DRAFT_FIELDS.forEach(function (k) { fields[k] = fieldValue(k); });
+    writeStore(DRAFT_KEY, { date: selected, slot: selectedSlot, label: selectedLabel, fields: fields, ts: Date.now() });
+  }
+  // After the first days answer: a fresh draft whose day and time are still open comes back on the details step.
+  function restoreDraft() {
+    var draft = readStore(DRAFT_KEY);
+    if (!isFresh(draft, Date.now(), DAY)) { writeStore(DRAFT_KEY, null); return; }
+    DRAFT_FIELDS.forEach(function (k) { setField(k, (draft.fields || {})[k]); });
+    var ym = (draft.date || '').slice(0, 7), list = draft.date && months[ym] ? months[ym][draft.date] || [] : [];
+    var ok = list.filter(function (x) { return x.id === draft.slot; })[0];
+    if (!ok) return;
+    view = ym; selected = draft.date; selectedSlot = draft.slot; selectedLabel = draft.label || ''; dateInput.value = selected; slotInput.value = selectedSlot;
+    renderCal(); renderTimes(); lastStep = null; show('details'); lastStep = 'details';
+  }
+  form.addEventListener('input', function (e) { if (e.target && DRAFT_FIELDS.indexOf(e.target.name) !== -1) saveDraft(); });
+  form.addEventListener('change', function (e) { if (e.target && DRAFT_FIELDS.indexOf(e.target.name) !== -1) saveDraft(); });
+
+  /* ---- the sent request: its token and summary, so a refresh keeps the car and notice steps ---- */
+  function paintSent(sent) {
+    var sum = $('[data-booking-summary]');
+    if (sum && sent.when) sum.textContent = str('asked') + ': ' + (sent.when[lang()] || sent.when.en) + ' · ' + (sent.service || '');
+    var manage = $('[data-booking-manage]');
+    if (manage && sent.manage_url) manage.href = sent.manage_url; else if (manage) manage.hidden = true;
+    var again = $('[data-booking-again]'); if (again) again.hidden = false;
+  }
+  function restoreSent() {
+    var sent = readStore(SENT_KEY);
+    if (!isFresh(sent, Date.now(), 7 * DAY) || !sent.token) { writeStore(SENT_KEY, null); return false; }
+    state.name = sent.name || ''; state.token = sent.token; state.shared = sent.shared || null; state.car = sent.car || '';
+    paintSent(sent);
+    if (carStep) carStep.hidden = state.shared !== null;
+    if (issuesStep) issuesStep.hidden = !(state.shared === 'done' && !sent.issues);
+    show('sent'); lastStep = 'sent';
+    return true;
+  }
+  function updateSent(patch) { var sent = readStore(SENT_KEY) || {}; Object.keys(patch).forEach(function (k) { sent[k] = patch[k]; }); writeStore(SENT_KEY, sent); }
+  form.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-booking-again]');
+    if (!b) return;
+    writeStore(SENT_KEY, null); writeStore(DRAFT_KEY, null);
+    state = { step: 'time', name: '', shared: null, token: '' }; selected = ''; selectedSlot = ''; selectedLabel = ''; dateInput.value = ''; slotInput.value = '';
+    form.reset(); if (carStep) carStep.hidden = true; if (issuesStep) issuesStep.hidden = true; if (thanks) thanks.hidden = true; b.hidden = true;
+    renderCal(); renderTimes(); show('time');
+  });
 
   /* ---- submit ---- */
   function fail(msg) { form.classList.remove('is-sending'); status.className = 'form__status is-bad'; status.textContent = msg; submitBtn.disabled = false; }
@@ -257,6 +316,9 @@
         var m = /[?&]t=([A-Za-z0-9_-]+)/.exec(r.data.manage_url || '');
         state.token = m ? m[1] : '';
         if (state.token && carStep) carStep.hidden = false;
+        writeStore(DRAFT_KEY, null);
+        writeStore(SENT_KEY, state.token ? { token: state.token, name: state.name, when: r.data.when || null, service: r.data.service || '', manage_url: r.data.manage_url || '', shared: null, car: '', issues: false, ts: Date.now() } : null);
+        var again = $('[data-booking-again]'); if (again) again.hidden = !state.token;
         show('sent'); done.focus();
       })
       .catch(function (err) { fail(err.message || str('failed')); });
@@ -282,19 +344,22 @@
     var which = b.getAttribute('data-share') || b.getAttribute('data-skip'), skip = b.hasAttribute('data-skip');
     if (which === 'car') {
       var vin = $('[name=vin]').value.trim(), model = $('[name=car_model]').value.trim();
-      if (skip || (!vin && !model)) { state.shared = 'skipped'; carStep.hidden = true; renderRail(); return; }
+      if (skip || (!vin && !model)) { state.shared = 'skipped'; carStep.hidden = true; updateSent({ shared: 'skipped' }); renderRail(); return; }
       share({ action: 'share', vin: vin, car_model: model }, function (data) {
         state.shared = 'done'; state.car = data.vin || data.car_model || vin || model;
+        updateSent({ shared: 'done', car: state.car });
         carStep.hidden = true; if (issuesStep) issuesStep.hidden = false; thank('car_thanks'); renderRail();
       });
     }
     if (which === 'issues') {
       var typed = $('[name=issues]').value.trim(), agree = $('[name=self_report_ack]');
-      if (skip || !typed) { issuesStep.hidden = true; return; }
+      var picked = $$('[name=noticed]:checked').map(function (c) { return c.value; });
+      if (skip || (!typed && !picked.length)) { issuesStep.hidden = true; updateSent({ issues: true }); return; }
       if (!agree.checked) { shareFail(str('needs_agree')); agree.focus(); return; }
-      share({ action: 'share', issues: typed, self_report_ack: true }, function () { issuesStep.hidden = true; thank('issues_thanks'); });
+      share({ action: 'share', issues: typed, noticed: picked, self_report_ack: true }, function () { issuesStep.hidden = true; updateSent({ issues: true }); thank('issues_thanks'); });
     }
   });
 
-  show('time'); start(); renderTimes();
+  if (!restoreSent()) show('time');
+  start(); renderTimes();
 })();

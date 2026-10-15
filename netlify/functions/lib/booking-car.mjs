@@ -9,11 +9,34 @@
 
 import { siteName } from './config.mjs';
 
-export const SELF_REPORT_VERSION = 'self-report-2026-10-14';
+// Bumped 2026-10-14b: the notice now also says the shop is not liable for any
+// repair made without its own diagnosis first (koH).
+export const SELF_REPORT_VERSION = 'self-report-2026-10-14b';
 // 17 characters, no I, O or Q (the standard leaves them out).
 export const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
 export const CAR_MODEL_MAX = 80;
-export const ISSUES_MAX = 1500;
+export const ISSUES_MAX = 2500;
+
+// The quick picks above the free text: what the customer noticed, in their own
+// words after. Picked keys are stored as their labels at the top of `issues`
+// (no new column); the free text may say anything.
+export const SYMPTOMS = Object.freeze([
+  { key: 'light', en: 'A warning light is on', es: 'Hay una luz de advertencia encendida' },
+  { key: 'noise', en: 'A noise', es: 'Un ruido' },
+  { key: 'leak', en: 'A leak or a puddle', es: 'Una fuga o un charco' },
+  { key: 'start', en: 'Will not start', es: 'No arranca' },
+  { key: 'brakes', en: 'Brakes feel off', es: 'Los frenos se sienten raros' },
+  { key: 'overheat', en: 'Running hot', es: 'Se calienta' },
+  { key: 'ac', en: 'AC or heat', es: 'Aire acondicionado o calefacción' },
+  { key: 'electrical', en: 'Electrical or battery', es: 'Eléctrico o batería' },
+  { key: 'shake', en: 'Shakes, pulls or steers oddly', es: 'Vibra, se va de lado o la dirección está rara' },
+  { key: 'power', en: 'Loses power or stalls', es: 'Pierde fuerza o se apaga' },
+  { key: 'smell', en: 'A smell or smoke', es: 'Un olor o humo' },
+  { key: 'service', en: 'Maintenance or service due', es: 'Toca mantenimiento o servicio' },
+  { key: 'other', en: 'Something else', es: 'Otra cosa' },
+]);
+export const SYMPTOM_KEYS = SYMPTOMS.map((s) => s.key);
+export const symptomLabels = (keys, lang = 'en') => SYMPTOMS.filter((s) => keys.includes(s.key)).map((s) => (lang === 'es' ? s.es : s.en));
 
 const WORDS = Object.freeze({
   en: {
@@ -23,10 +46,11 @@ const WORDS = Object.freeze({
     model: 'Or the year, make, and model',
     share: 'Share', skip: 'No thanks', send: 'Send',
     car_thanks: 'Thank you, we have it.',
-    issues_title: 'Anything you have noticed? (optional)',
-    notice: (business) => `What you write here helps us plan, and we read it. It is not a diagnosis. ${business} is not responsible for a self-diagnosis, another mechanic's opinion, or any information suggested to you. Our responsibility is for the work we diagnose ourselves first and agree with you.`,
-    issues: 'What you noticed',
-    placeholder: 'A noise, a light, a leak, when it happens, what someone else told you',
+    issues_title: 'What is going on with the car? (optional)',
+    symptoms: 'Tick anything that fits',
+    notice: (business) => `What you write here helps us plan, and we read it. It is not a diagnosis. ${business} is not responsible for a self-diagnosis, another mechanic's opinion, or any information suggested to you, and is not liable for any repair made without a diagnosis by ${business} first. Our responsibility is for the work we diagnose ourselves first and agree with you.`,
+    issues: 'Describe it in your own words',
+    placeholder: 'Whatever you have noticed: what the car does, when it started, what makes it worse, what someone else told you',
     agree: 'I have read the notice above and agree',
     issues_thanks: 'Thank you. We read it before we come.',
     needs_agree: 'Tick the box to send what you noticed.',
@@ -41,10 +65,11 @@ const WORDS = Object.freeze({
     model: 'O el año, la marca y el modelo',
     share: 'Compartir', skip: 'No, gracias', send: 'Enviar',
     car_thanks: 'Gracias, ya lo tenemos.',
-    issues_title: '¿Algo que haya notado? (opcional)',
-    notice: (business) => `Lo que escriba aquí nos ayuda a planear, y lo leemos. No es un diagnóstico. ${business} no se hace responsable de un autodiagnóstico, de la opinión de otro mecánico ni de información que le hayan sugerido. Nuestra responsabilidad es por el trabajo que diagnosticamos nosotros primero y acordamos con usted.`,
-    issues: 'Lo que notó',
-    placeholder: 'Un ruido, una luz, una fuga, cuándo pasa, lo que alguien más le dijo',
+    issues_title: '¿Qué le pasa al carro? (opcional)',
+    symptoms: 'Marque lo que aplique',
+    notice: (business) => `Lo que escriba aquí nos ayuda a planear, y lo leemos. No es un diagnóstico. ${business} no se hace responsable de un autodiagnóstico, de la opinión de otro mecánico ni de información que le hayan sugerido, y no es responsable de ninguna reparación hecha sin un diagnóstico previo de ${business}. Nuestra responsabilidad es por el trabajo que diagnosticamos nosotros primero y acordamos con usted.`,
+    issues: 'Descríbalo con sus palabras',
+    placeholder: 'Lo que haya notado: qué hace el carro, cuándo empezó, qué lo empeora, lo que alguien más le dijo',
     agree: 'He leído el aviso anterior y estoy de acuerdo',
     issues_thanks: 'Gracias. Lo leemos antes de ir.',
     needs_agree: 'Marque la casilla para enviar lo que notó.',
@@ -59,6 +84,12 @@ export const selfReportNotice = (lang) => carWords(lang).notice(siteName());
 const clip = (v, max) => String(v == null ? '' : v).replace(/\r\n?/g, '\n').trim().slice(0, max);
 const truthy = (v) => v === true || v === 'true' || v === 'on' || v === '1' || v === 1;
 
+// The picked quick answers (`noticed`): an array or a comma list of keys; unknown ones are dropped.
+function symptomKeys(v) {
+  const list = Array.isArray(v) ? v : String(v == null ? '' : v).split(',');
+  return SYMPTOM_KEYS.filter((k) => list.map((x) => String(x).trim()).includes(k));
+}
+
 function bad(lang, key) {
   return Object.assign(new Error(carWords(lang)[key]), { status: 400 });
 }
@@ -71,7 +102,9 @@ export function buildShare({ body, lang = 'en' }) {
   const vin = clip(body.vin, 40).toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (vin && !VIN_RE.test(vin)) throw bad(lang, 'bad_vin');
   const carModel = clip(body.car_model, CAR_MODEL_MAX);
-  const issues = clip(body.issues, ISSUES_MAX);
+  const picked = symptomKeys(body.noticed);
+  const typed = clip(body.issues, ISSUES_MAX);
+  const issues = [picked.length ? symptomLabels(picked, lang).join(', ') : '', typed].filter(Boolean).join('\n\n').slice(0, ISSUES_MAX);
   const ack = truthy(body.self_report_ack);
   if (issues && !ack) throw bad(lang, 'needs_agree');
   if (!vin && !carModel && !issues) throw bad(lang, 'nothing');

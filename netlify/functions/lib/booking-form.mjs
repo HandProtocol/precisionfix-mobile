@@ -11,7 +11,7 @@ import { escapeHtml as e, jsonForScript, telHref } from './html.mjs';
 import { addDays, findSlot, label12, fmtHm, settingsFrom, zonedParts } from './booking.mjs';
 import { pricingLines, pricingWords } from './booking-pricing.mjs';
 import { stripeConfigured } from './stripe.mjs';
-import { CAR_MODEL_MAX, ISSUES_MAX, carWords, selfReportNotice } from './booking-car.mjs';
+import { CAR_MODEL_MAX, ISSUES_MAX, SYMPTOMS, carWords, selfReportNotice } from './booking-car.mjs';
 
 const KEY_RE = /^[a-z][a-z0-9_-]*$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -46,6 +46,7 @@ const S = {
   sent: ['Request sent', 'Solicitud enviada'],
   nothing_set: ['Nothing is set until the owner confirms.', 'Nada queda fijado hasta que el dueño confirme.'],
   manage: ['Cancel or change the time', 'Cancelar o cambiar la hora'],
+  again: ['Request another time', 'Pedir otra hora'],
   choose: ['Choose…', 'Elige…'],
 };
 const s = (k) => S[k];
@@ -90,7 +91,8 @@ function carSteps() {
     <fieldset class="form__group booking__issues" data-step="issues" hidden>
       <legend>${bi('span', en.issues_title, es.issues_title)}</legend>
       ${bi('p', selfReportNotice('en'), selfReportNotice('es'), 'booking__notice')}
-      <label class="field">${bi('span', en.issues, es.issues)}<textarea name="issues" rows="4" maxlength="${ISSUES_MAX}" placeholder="${e(en.placeholder)}" data-es-ph="${e(es.placeholder)}"></textarea></label>
+      <fieldset class="booking__noticed"><legend>${bi('span', en.symptoms, es.symptoms)}</legend><div class="booking__chips">${SYMPTOMS.map((sy) => `<label class="choice booking__chip"><input type="checkbox" name="noticed" value="${sy.key}">${bi('span', sy.en, sy.es)}</label>`).join('')}</div></fieldset>
+      <label class="field">${bi('span', en.issues, es.issues)}<textarea name="issues" rows="5" maxlength="${ISSUES_MAX}" placeholder="${e(en.placeholder)}" data-es-ph="${e(es.placeholder)}"></textarea></label>
       <label class="booking__agree"><input type="checkbox" name="self_report_ack" value="true">${bi('span', en.agree, es.agree)}</label>
       <div class="booking__buttons"><button class="btn btn--primary btn--sm" type="button" data-share="issues">${bi('span', en.send, es.send)}</button><button class="btn btn--ghost btn--sm" type="button" data-skip="issues">${bi('span', en.skip, es.skip)}</button></div>
     </fieldset>
@@ -196,6 +198,7 @@ export function bookingBlock({ content, now = new Date(), success, success_es, n
     ${bi('p', s('nothing_set')[0], s('nothing_set')[1], 'booking__nothing')}
     ${success ? bi('p', success, success_es, 'booking__success') : ''}
     <p><a class="booking__manage" data-booking-manage href="#book">${bi('span', s('manage')[0], s('manage')[1])}</a></p>
+    <p><button class="btn btn--ghost btn--sm booking__again" type="button" data-booking-again hidden>${bi('span', s('again')[0], s('again')[1])}</button></p>
     ${tel ? `<p>${bi('span', s('hurry')[0], s('hurry')[1])} <a href="${e(tel)}">${e(phone)}</a></p>` : ''}
     ${carSteps()}
   </div>

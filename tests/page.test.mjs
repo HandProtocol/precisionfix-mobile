@@ -84,7 +84,10 @@ test('the booking section renders the engine funnel: one service, no car fields 
   assert.match(form, /<h3 data-es="Solicitud enviada">Request sent<\/h3>/);
   assert.match(form, /Nothing is set until the owner confirms\./);
   assert.match(form, /<legend><span data-es="¿Qué carro es\?">Which car is it\?<\/span><\/legend>/);
-  assert.match(form, /<legend><span data-es="¿Algo que haya notado\? \(opcional\)">Anything you have noticed\? \(optional\)<\/span><\/legend>/);
+  assert.match(form, /<legend><span data-es="¿Qué le pasa al carro\? \(opcional\)">What is going on with the car\? \(optional\)<\/span><\/legend>/);
+  assert.match(form, /is not liable for any repair made without a diagnosis by PrecisionFix first/);
+  assert.equal((form.match(/<label class="choice booking__chip"><input type="checkbox" name="noticed" value="/g) || []).length, 13, 'the symptom picks');
+  assert.match(form, /<button class="btn btn--ghost btn--sm booking__again" type="button" data-booking-again hidden><span data-es="Pedir otra hora">Request another time<\/span><\/button>/);
   assert.match(form, /PrecisionFix is not responsible for a self-diagnosis/);
   assert.match(form, /PrecisionFix no se hace responsable de un autodiagnóstico/);
   assert.equal(/reserved|taken|\bsíntoma/i.test(form), false);
