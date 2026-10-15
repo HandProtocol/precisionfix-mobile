@@ -509,6 +509,9 @@ test('pricing lines: the deposit toward the first hour, the surcharge, in EN and
   assert.deepEqual(pricingLines(normalizeBooking({ mode: 'request', deposit: { amount: 5000, currency: 'usd' } }), 'en'), ['A $50.00 deposit holds your time and comes off the bill.']);
   assert.deepEqual(pricingLines(normalizeBooking({ mode: 'request', deposit: { amount: 15000, currency: 'usd' }, pricing: { hourly: 15000 } }), 'en'), ['A $150.00 deposit holds your time and comes off the bill.', 'Work is $150.00 per hour.']);
   assert.deepEqual(pricingLines(normalizeBooking({ mode: 'request' }), 'en'), []);
+  // deposit: false (no Stripe key): the surcharge and the hourly rate, no deposit
+  assert.deepEqual(pricingLines(b, 'en', { deposit: false }), ['A $20.00 gas surcharge is added.', 'Work is $150.00 per hour.']);
+  assert.deepEqual(pricingLines(b, 'es', { deposit: false }), ['Se añade un recargo de $20.00 por gasolina.', 'El trabajo es $150.00 por hora.']);
   assert.equal(normalizeBooking({ mode: 'request', pricing: {} }).pricing, null);
 });
 
@@ -566,4 +569,13 @@ test('POST /api/booking/manage { action: share } saves the car onto the request,
     assert.equal(closed.status, 409);
     assert.equal((await handler(req(`/api/booking/manage?t=${token}`, { method: 'POST', body: { action: 'share', car_model: 'x' }, headers: { origin: 'https://evil.test' } }))).status, 403);
   } finally { be.restore(); }
+});
+
+import { withoutDepositTalk } from '../netlify/functions/lib/booking.mjs';
+test('the owner\'s "what to expect" loses its deposit paragraphs until the Stripe key is set', () => {
+  const text = 'Thanks!\n\nA $50 deposit is required to secure your appointment.\n\nI will text before heading your way.';
+  assert.equal(withoutDepositTalk(text, false), 'Thanks!\n\nI will text before heading your way.');
+  assert.equal(withoutDepositTalk(text, true), text);
+  assert.equal(withoutDepositTalk('Se requiere un depósito de $50.\n\nLe llamaré antes.', false), 'Le llamaré antes.');
+  assert.equal(withoutDepositTalk('', false), '');
 });

@@ -76,7 +76,7 @@ export const BOOKING = {
     mode: 'windows',
     confirm_within: 'I confirm every request by text or call, usually within a couple of hours.',
     confirm_within_es: 'Confirmo cada solicitud por texto o llamada, normalmente en un par de horas.',
-    expect: 'I will text or call before I head your way. Have the car somewhere I can open the hood and get underneath, and the keys handy. The deposit holds your time and comes off the bill; the rest is due when the job is done.',
-    expect_es: 'Te escribo o te llamo antes de salir hacia ti. Deja el auto donde pueda abrir el cofre y meterme debajo, y ten las llaves a la mano. El depósito aparta tu hora y se descuenta de la cuenta; el resto se paga al terminar el trabajo.',
+    expect: 'I will text or call before I head your way. Have the car somewhere I can open the hood and get underneath, and the keys handy. Payment is due when the job is done.',
+    expect_es: 'Te escribo o te llamo antes de salir hacia ti. Deja el auto donde pueda abrir el cofre y meterme debajo, y ten las llaves a la mano. El pago se hace al terminar el trabajo.',
   },
 };

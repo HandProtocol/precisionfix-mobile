@@ -1,3 +1,5 @@
+import { stripeConfigured } from './stripe.mjs';
+
 // Booking calendar, `request` mode: the owner's availability settings (an
 // engine-owned content section the owner edits in /admin/), the pure
 // availability engine (open days, offered times, overlap), and the .ics
@@ -178,6 +180,16 @@ export function bookingDefaults(overrides = {}) {
 
 // hoursByDay: { mon: [{from, to}], … } (minutes). Rows with to <= from are
 // dropped; several rows per day are allowed (split shifts).
+// The owner's "what to expect" paragraphs that talk about the deposit are
+// left out of the emails while the site has no Stripe key (the flow never
+// asks for one then); the whole text comes back as soon as the key is set.
+const DEPOSIT_WORDS = /dep[oó]sit/i;
+export function withoutDepositTalk(text, enabled = stripeConfigured()) {
+  const t = String(text || '');
+  if (enabled || !DEPOSIT_WORDS.test(t)) return t;
+  return t.split(/\n\s*\n/).filter((p) => !DEPOSIT_WORDS.test(p)).join('\n\n').trim();
+}
+
 export function settingsFrom(doc) {
   const s = (doc && doc[SECTION_KEY]) || {};
   const hours = {};
@@ -202,7 +214,7 @@ export function settingsFrom(doc) {
     maxPerDay: Math.max(0, Number(s.max_per_day) || 0),
     reminders: REMINDER_CHOICES.includes(s.reminders) ? s.reminders : ENGINE_DEFAULTS.reminders, // absent in documents saved before the setting existed
     confirmWithin: { en: String(s.confirm_within || ''), es: String(s.confirm_within_es || '') },
-    expect: { en: String(s.expect || ''), es: String(s.expect_es || '') },
+    expect: { en: withoutDepositTalk(s.expect), es: withoutDepositTalk(s.expect_es) },
   };
 }
 

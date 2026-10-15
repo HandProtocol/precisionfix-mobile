@@ -10,6 +10,7 @@ const BOOKING = SITE_BOOKING;
 import { escapeHtml as e, jsonForScript, telHref } from './html.mjs';
 import { addDays, findSlot, label12, fmtHm, settingsFrom, zonedParts } from './booking.mjs';
 import { pricingLines, pricingWords } from './booking-pricing.mjs';
+import { stripeConfigured } from './stripe.mjs';
 import { CAR_MODEL_MAX, ISSUES_MAX, carWords, selfReportNotice } from './booking-car.mjs';
 
 const KEY_RE = /^[a-z][a-z0-9_-]*$/;
@@ -68,7 +69,8 @@ function slotOptions(settings) {
 
 // The pricing box right above the button: the lines in both languages.
 function pricingBox(booking) {
-  const en = pricingLines(booking, 'en'), es = pricingLines(booking, 'es');
+  const opts = { deposit: stripeConfigured() };
+  const en = pricingLines(booking, 'en', opts), es = pricingLines(booking, 'es', opts);
   if (!en.length) return '';
   return `<div class="booking__pricing" data-booking-pricing>${bi('strong', pricingWords('en').title, pricingWords('es').title)}${en.map((line, i) => bi('p', line, es[i] || '')).join('')}</div>`;
 }

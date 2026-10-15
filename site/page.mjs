@@ -17,6 +17,7 @@
 import * as B from '../netlify/functions/lib/blocks.mjs';
 import { toView } from '../netlify/functions/lib/content.mjs';
 import { config } from '../netlify/functions/lib/config.mjs';
+import { stripeConfigured } from '../netlify/functions/lib/stripe.mjs';
 import { pickTheme } from './themes.mjs';
 
 const { e } = B;
@@ -60,9 +61,20 @@ function dots(en, es, cls) {
   return `<ul class="${cls}">${a.map((x, i) => `<li${b[i] ? ` data-es="${e(b[i])}"` : ''}>${e(x)}</li>`).join('')}</ul>`;
 }
 
+// Copy that promises the deposit (a step, a question) stays off the page until
+// the site carries a Stripe key: the flow never asks for a deposit before then.
+// Matched on the words, not a flag, so the owner's own edits are covered too.
+const DEPOSIT_WORDS = /dep[oó]sit/i;
+export function depositCopy(it) {
+  return [it.title, it.body, it.q, it.a].some((t) => DEPOSIT_WORDS.test(t || ''));
+}
+export const showDepositCopy = () => stripeConfigured();
+// The small print under the button too: dropped while it promises a deposit.
+const noteFor = (t) => (showDepositCopy() || !DEPOSIT_WORDS.test(t || '') ? t : '');
+export const faqItems = (c) => c.faq.items.filter((it) => it.q && it.a && (showDepositCopy() || !depositCopy(it)));
+
 function faq(c) {
-  return c.faq.items
-    .filter((it) => it.q && it.a)
+  return faqItems(c)
     .map(
       (it, i) => `<details class="faq__item reveal" style="--d:${i * 40}ms">
   <summary class="faq__q">${bi('span', it.q, it.q_es)}<span class="faq__mark" aria-hidden="true"></span></summary>
@@ -73,7 +85,7 @@ function faq(c) {
 }
 
 function steps(c) {
-  const items = (c.booking.steps || []).filter((s) => s.title);
+  const items = (c.booking.steps || []).filter((s) => s.title && (showDepositCopy() || !depositCopy(s)));
   if (!items.length) return '';
   return `<div class="steps reveal">
   ${c.booking.steps_heading ? bi('h3', c.booking.steps_heading, c.booking.steps_heading_es, 'steps__title') : ''}
@@ -237,14 +249,14 @@ export function renderPage({ content, media, origin = '', url }) {
   const cities = c.area.cities.filter((x) => x.name);
   const v = e(config.assetVersion);
 
-  const faqItems = c.faq.items.filter((it) => it.q && it.a);
+  const faqList = faqItems(c);
   const has = {
     creds: c.credentials.items.length > 0,
     services: c.services.items.length > 0,
     why: c.why.items.length > 0,
     area: Boolean(c.area.heading || cities.length),
     work: views.length > 0,
-    faq: faqItems.length > 0,
+    faq: faqList.length > 0,
     book: true,
     strip: Boolean(c.cta.strip),
   };
@@ -279,7 +291,7 @@ export function renderPage({ content, media, origin = '', url }) {
     ? `<script type="application/ld+json">${B.jsonForScript({
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
-        mainEntity: faqItems.map((it) => ({ '@type': 'Question', name: it.q, acceptedAnswer: { '@type': 'Answer', text: it.a } })),
+        mainEntity: faqList.map((it) => ({ '@type': 'Question', name: it.q, acceptedAnswer: { '@type': 'Answer', text: it.a } })),
       })}</script>`
     : '';
   const headExtra = `<link rel="stylesheet" href="/assets/themes/${e(T.id)}.css?v=${v}">
@@ -457,7 +469,7 @@ ${
       </div>
       ${steps(c)}
     </div>
-    <div class="book__form reveal">${B.bookingBlock({ content: c, success: c.booking.success, success_es: c.booking.success_es, note: c.booking.note, note_es: c.booking.note_es })}</div>
+    <div class="book__form reveal">${B.bookingBlock({ content: c, success: c.booking.success, success_es: c.booking.success_es, note: noteFor(c.booking.note), note_es: noteFor(c.booking.note_es) })}</div>
   </div>
 </section>
 </main>

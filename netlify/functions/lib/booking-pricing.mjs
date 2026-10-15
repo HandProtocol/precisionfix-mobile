@@ -35,10 +35,13 @@ export function fmtCents(cents, currency = 'usd', lang = 'en') {
 // The lines in order: the deposit (toward the first hour when there is an
 // hourly rate above it), the surcharge, the hourly rate when the deposit
 // line did not already say it. [] when the site states no pricing.
-export function pricingLines(booking, lang = 'en') {
+// `deposit: false` (the site has no Stripe key yet, lib/stripe.mjs
+// stripeConfigured()) leaves the deposit out: the page must not promise a
+// deposit the flow never asks for.
+export function pricingLines(booking, lang = 'en', { deposit: withDeposit = true } = {}) {
   if (!booking) return [];
   const w = pricingWords(lang);
-  const deposit = booking.deposit ? booking.deposit.amount : 0;
+  const deposit = withDeposit && booking.deposit ? booking.deposit.amount : 0;
   const currency = (booking.deposit && booking.deposit.currency) || (booking.pricing && booking.pricing.currency) || 'usd';
   const hourly = booking.pricing ? booking.pricing.hourly : 0;
   const surcharge = booking.pricing ? booking.pricing.surcharge : 0;

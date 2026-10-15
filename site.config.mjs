@@ -18,7 +18,7 @@ export default {
   supabase: { projectRef: 'vconmgerblqbworcqkvr', schema: 'command' },
 
   // Bump whenever public/assets/** change (site + admin assets both carry it).
-  assetVersion: '20261014b',
+  assetVersion: '20261014c',
 
   fonts: base.fonts,
 

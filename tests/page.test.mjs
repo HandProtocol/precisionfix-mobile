@@ -74,7 +74,10 @@ test('the booking section renders the engine funnel: one service, no car fields 
   // the pricing, right above the button, in both languages
   const actions = form.slice(form.indexOf('<div class="form__actions"'), form.indexOf('form__submit'));
   assert.match(actions, /<div class="booking__pricing" data-booking-pricing><strong data-es="Precios">Pricing<\/strong>/);
-  assert.ok(actions.includes('<p data-es="Un depósito de $50.00 reserva su hora y cuenta para la primera hora ($150.00): $100.00 más cuando llegamos, luego $150.00 cada hora después.">A $50.00 deposit holds your time and goes toward the first hour ($150.00): $100.00 more when we arrive, then $150.00 each hour after.</p>'), 'the deposit line');
+  // no Stripe key in tests: the deposit line stays off, the hourly rate says it instead
+  assert.equal(/dep[oó]sit/i.test(actions), false, 'no deposit promise without a Stripe key');
+  assert.ok(actions.includes('<p data-es="El trabajo es $150.00 por hora.">Work is $150.00 per hour.</p>'), 'the hourly line');
+  assert.ok(!actions.includes('A $50.00 depo') || actions.includes('<p data-es="Un depósito de $50.00 reserva su hora y cuenta para la primera hora ($150.00): $100.00 más cuando llegamos, luego $150.00 cada hora después.">A $50.00 deposit holds your time and goes toward the first hour ($150.00): $100.00 more when we arrive, then $150.00 each hour after.</p>'), 'the deposit line');
   assert.ok(actions.includes('<p data-es="Se añade un recargo de $20.00 por gasolina.">A $20.00 gas surcharge is added.</p>'), 'the surcharge line');
   assert.match(form, /<button class="btn btn--primary btn--lg form__submit" type="submit"><span data-es="Pedir esta hora">Request this time<\/span><\/button>/);
   // after sending: the fixed heading, then the car and the notice (hidden until JS has the token)
@@ -89,7 +92,8 @@ test('the booking section renders the engine funnel: one service, no car fields 
   assert.match(html, /<select name="slot" required><option value="morning" data-es="Mañana \(8:00 AM a 11:00 AM\)">Morning \(8:00 AM to 11:00 AM\)<\/option><option value="midday"/);
   assert.match(html, /I confirm every request by text or call/);
   assert.match(html, /<p class="booking__success" data-es="Recibido\. Te escribo o te llamo en breve para confirmar la hora\.">Got it\. I will text or call you shortly to confirm a time\.<\/p>/);
-  assert.match(html, /<p class="form__note" data-es="No pagas nada para pedir un horario\. Un depósito de \$50/);
+  // the small print promises the deposit, so it waits for the Stripe key too (gated in site/page.mjs noteFor)
+  assert.equal(html.includes('class="form__note" data-es="No pagas nada'), false, 'no deposit small print without a Stripe key');
   assert.equal(html.includes('data-netlify'), false);
   assert.equal(html.includes('/forms/booking.html'), false);
   // the calendar settings section is in the schema with PrecisionFix's defaults
@@ -142,13 +146,14 @@ test('conversion: trust line, booking prompts after Services and the photos, wha
   assert.match(html, /<a class="cta__strip reveal" href="#book">\s*<span class="cta__strip-text" data-es="¿Tu auto es el siguiente\?<br><b>Reserva una visita\.<\/b>">Your car next\?<br><b>Book a visit\.<\/b><\/span>\s*<span class="btn btn--primary"><span data-es="Elegir un horario">Pick a time<\/span><\/span>/);
   // FAQ: native <details>, between Area and Book, numbered like the other sections
   assert.ok(at('id="area"') < at('id="faq"') && at('id="faq"') < at('id="book"'), 'FAQ before the form');
-  assert.equal((html.match(/<details class="faq__item reveal"/g) || []).length, DEFAULT_CONTENT.faq.items.length);
+  assert.equal((html.match(/<details class="faq__item reveal"/g) || []).length, DEFAULT_CONTENT.faq.items.length - 1, 'the deposit question waits for the Stripe key');
+  assert.equal(html.includes('Do I need to pay to book?'), false);
   assert.match(html, /<summary class="faq__q"><span data-es="¿De verdad vienes a mí\?">Do you really come to me\?<\/span>/);
   // the steps live in the booking column
   const book = html.slice(at('id="book"'), at('<footer'));
   assert.match(book, /<h3 class="steps__title" data-es="Qué sigue">What happens next<\/h3>/);
-  assert.equal((book.match(/<li class="step">/g) || []).length, 4);
-  assert.match(book, /<b class="step__title" data-es="Asegúralo con un depósito de \$50">Lock it in with a \$50 deposit<\/b>/);
+  assert.equal((book.match(/<li class="step">/g) || []).length, 3, 'the deposit step waits for the Stripe key');
+  assert.equal(/dep[oó]sit/i.test(book), false);
   assert.match(book, /<span class="step__n" aria-hidden="true">1<\/span>/);
   // the persistent CTAs stay: header button (desktop), call bar (phones), hidden behind the open menu
   assert.match(html, /<a class="btn btn--primary btn--sm nav__cta" href="#book">/);
@@ -173,7 +178,7 @@ test('search: AutoRepair structured data with address, E.164 phone, opening hour
   assert.equal(ld.hasOfferCatalog.itemListElement[1].itemOffered.name, 'Brake Service');
   assert.deepEqual(ld.areaServed[0], { '@type': 'City', name: 'Austin' });
   const faq = JSON.parse(html.match(/<script type="application\/ld\+json">(\{"@context":"https:\/\/schema\.org","@type":"FAQPage"[\s\S]*?)<\/script>/)[1]);
-  assert.equal(faq.mainEntity.length, DEFAULT_CONTENT.faq.items.length);
+  assert.equal(faq.mainEntity.length, DEFAULT_CONTENT.faq.items.length - 1, 'the deposit question is off the FAQPage too until the Stripe key');
   assert.equal(faq.mainEntity[0].acceptedAnswer.text, DEFAULT_CONTENT.faq.items[0].a);
   assert.match(html, /<meta property="og:locale" content="en_US">\n<meta property="og:locale:alternate" content="es_US">/);
   assert.match(html, /<meta property="og:image:alt" content="Porsche 911 GT3 RS in the shop">/);
@@ -206,4 +211,18 @@ test('the Search Console code becomes a meta tag; the schema carries the hidden 
   for (const it of CHECKLIST) assert.ok(admin.includes(`data-setup="${it.id}"`), it.id);
   assert.match(admin, /Namecheap/);
   assert.equal(admin.includes('${'), false);
+});
+
+test('with a Stripe key the deposit copy comes back: the step, the question, the pricing line', () => {
+  process.env.PRECISIONFIX_STRIPE_SECRET_KEY = 'sk_test_x';
+  try {
+    const html = full();
+    assert.match(html, /<b class="step__title" data-es="Asegúralo con un depósito de \$50">Lock it in with a \$50 deposit<\/b>/);
+    assert.equal((html.match(/<li class="step">/g) || []).length, 4);
+    assert.ok(html.includes('Do I need to pay to book?'));
+    assert.equal((html.match(/<details class="faq__item reveal"/g) || []).length, DEFAULT_CONTENT.faq.items.length);
+    assert.ok(html.includes('A $50.00 deposit holds your time and goes toward the first hour ($150.00)'));
+  } finally {
+    delete process.env.PRECISIONFIX_STRIPE_SECRET_KEY;
+  }
 });
