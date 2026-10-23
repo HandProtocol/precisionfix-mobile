@@ -155,6 +155,30 @@ test('sendBookingEmail: routes kinds, attaches the .ics on confirm, skips custom
   }
 });
 
+test('EMAIL_REPLY_TO: customer mail replies to the owner inbox; the owner notice still replies to the customer; a bad value is ignored', async () => {
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, json: async () => ({ id: 'em' }) }; };
+  process.env.RESEND_API_KEY = 't'; process.env.EMAIL_FROM = 'S <bookings@x.io>';
+  const P = config.envPrefix;
+  const savedNotify = process.env[`${P}_BOOKING_NOTIFY`];
+  process.env[`${P}_BOOKING_NOTIFY`] = 'owner@handprotocol.org';
+  try {
+    process.env.EMAIL_REPLY_TO = 'shop@handprotocol.org';
+    await sendBookingEmail('received', { booking: B, manageUrl: 'https://s/m' });
+    assert.equal(calls[0].reply_to, 'shop@handprotocol.org');
+    await sendBookingEmail('owner_new', { booking: B, links: { confirm: 'c', decline: 'd', open: 'o' } });
+    assert.equal(calls[1].reply_to, 'Ana@Example.com');
+    process.env.EMAIL_REPLY_TO = 'Shop <shop@handprotocol.org>';
+    await sendBookingEmail('received', { booking: B, manageUrl: 'https://s/m' });
+    assert.equal('reply_to' in calls[2], false);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.RESEND_API_KEY; delete process.env.EMAIL_FROM; delete process.env.EMAIL_REPLY_TO;
+    if (savedNotify === undefined) delete process.env[`${P}_BOOKING_NOTIFY`]; else process.env[`${P}_BOOKING_NOTIFY`] = savedNotify;
+  }
+});
+
 test('customerSmsHref: a text the owner sends when there is no email, in the customer language, with the reason; empty without a phone', () => {
   const en = customerSmsHref({ ...B, status: 'confirmed' }, 'confirmed', { settings: SETTINGS });
   assert.match(en, /^sms:5125550101\?&body=/);

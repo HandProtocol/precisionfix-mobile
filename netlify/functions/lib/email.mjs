@@ -1,7 +1,9 @@
 // Magic-link email via Resend. Best effort: returns { ok:false } when the
 // sender is not configured instead of throwing. Colors come from the theme.
 //
-// Env: RESEND_API_KEY, EMAIL_FROM (verified sender, e.g. "Studio <hello@…>")
+// Env: RESEND_API_KEY, EMAIL_FROM (verified sender, e.g. "Studio <hello@…>"),
+// EMAIL_REPLY_TO (optional: where a customer's reply lands, e.g. the
+// owner's inbox when EMAIL_FROM is a no-reply address on the site's domain)
 
 import { config, siteName } from './config.mjs';
 import { escapeHtml } from './html.mjs';
@@ -10,15 +12,24 @@ export function emailConfigured() {
   return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
 }
 
+// The default Reply-To: EMAIL_REPLY_TO when it holds one plain address.
+// A payload's own reply_to wins (the owner's notice replies to the customer).
+const PLAIN_EMAIL_RE = /^[^\s@<>",]+@[^\s@<>",]+\.[A-Za-z]{2,24}$/;
+export function defaultReplyTo() {
+  const v = String(process.env.EMAIL_REPLY_TO || '').trim();
+  return PLAIN_EMAIL_RE.test(v) ? v : '';
+}
+
 // One Resend call. Never throws: { ok, id } or { ok:false, reason }.
 // payload: { to: [], subject, html, text, reply_to?, attachments?: [{ filename, content (base64) }] }
 export async function sendEmail(payload) {
   if (!emailConfigured()) return { ok: false, reason: 'email-unconfigured' };
+  const replyTo = defaultReplyTo();
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM, ...payload }),
+      body: JSON.stringify({ from: process.env.EMAIL_FROM, ...(replyTo ? { reply_to: replyTo } : {}), ...payload }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');

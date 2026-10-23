@@ -13,6 +13,53 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
+**2026-10-23 later: notices now go to precisionfixmobile@gmail.com (LIVE).**
+koH: "hand can sign in but doesnt get an email. send emails to
+precisionfixmobile@gmail.com". Set on Alex's Netlify: `PRECISIONFIX_BOOKING_NOTIFY`,
+`PRECISIONFIX_FORM_NOTIFY` and `EMAIL_REPLY_TO` = precisionfixmobile@gmail.com;
+hand@handprotocol.org stays an editor (can sign in) but gets no notices. The
+`EMAIL_REPLY_TO` code was pushed to the mirror. `EMAIL_FROM` is still
+`PrecisionFix <hand@handprotocol.org>` with the HAND send-only key, because
+**precisionfixmobile.com is not yet added/verified in the new Resend account**
+(a test send from bookings@precisionfixmobile.com got 403 "domain is not
+verified"). koH gave a send-only key from that new account (it cannot list or
+add domains; never stored in a file). Once the domain is verified there: set
+`RESEND_API_KEY` = that key and `EMAIL_FROM` = `PrecisionFix
+<bookings@precisionfixmobile.com>` in ONE step (the new key cannot send as
+handprotocol.org, the old one cannot send as precisionfixmobile.com), redeploy,
+test.
+
+**2026-10-23: mail on PrecisionFix's own domain (first pass).**
+koH: Resend on PrecisionFix's domain for the booking system; a new PrecisionFix
+Gmail gets the owner's notice on every request and is where customers' replies
+land. koH is creating the Resend account and will hand over the DNS records.
+
+- **Found on the live site:** `PRECISIONFIX_BOOKING_NOTIFY` is not set on Alex's
+  Netlify (it was on the old cryptokoh site), so `FORM_NOTIFY` =
+  `hand@handprotocol.org` wins and **Alex has not been emailed about any request
+  since the 2026-10-14 move**. Customer mail carries no Reply-To, so a customer's
+  reply goes to `EMAIL_FROM` = `hand@handprotocol.org`.
+- **Code (here + `clients/_template`, not pushed):** `lib/email.mjs` reads an
+  optional `EMAIL_REPLY_TO`; mail without its own Reply-To (all customer mail)
+  replies there; the owner's notice keeps the customer as Reply-To; a value that
+  is not one plain address is ignored. Test added; 161 pass here, 148 in the
+  template. With the env unset nothing changes, so it is safe to ship ahead.
+- **DNS:** the `precisionfixmobile.com` zone is on Alex's Netlify (team
+  `alexb04-uti`, zone `6acfcf638ba977fe81530fa5`); the CLI here is logged in as
+  Alex, so records go in with no account switch. No MX or TXT there yet.
+- **To finish, in order:** add Resend's records to that zone → Resend says
+  verified → set env on the site: `RESEND_API_KEY` (the new account's send-only
+  key), `EMAIL_FROM` = `PrecisionFix <bookings@precisionfixmobile.com>`,
+  `EMAIL_REPLY_TO` = the Gmail, `PRECISIONFIX_BOOKING_NOTIFY` = the Gmail (plus
+  `hand@handprotocol.org` if koH wants a copy) → rsync + push the mirror →
+  one live test request (owner notice to the Gmail, customer mail from the
+  domain, a reply to it lands in the Gmail) → delete the test row. Then add the
+  Gmail as an owner (`PRECISIONFIX_OWNER_EMAILS` + `command.precisionfix_editors`)
+  if koH wants it to sign in to `/admin/`.
+- A Gmail address can never be the From (Gmail's DMARC rejects it from Resend);
+  it is the inbox. koordi's side is noted in `koordi/docs/sessions/2026-10-23-1.md`
+  and its handoff, Next step 6.
+
 **2026-10-15: admin portal + "Connect Stripe" LIVE** (koH: "apply and ship"). Migration 054 applied and recorded; table has RLS on and no anon or authenticated grants. Mirror commit `bc9581e` auto-deployed, `assetVersion` `20261015a`. Verified signed in on precisionfix-mobile.netlify.app at 390 wide, 15 of 15 checks:
 
 - lands on Home; dock 5; Payments screen with its 3 steps
