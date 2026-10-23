@@ -63,16 +63,21 @@ export async function sendEmailWithRetry(payload, { delays = RETRY_DELAYS_MS, sl
 }
 
 // The themed card every site email sits in. `eyebrow` is the site name.
-export function emailShell(inner, { theme = config.theme, eyebrow = siteName() } = {}) {
+// `preheader`: the line an inbox shows next to the subject (hidden in the
+// mail itself). `footer`: HTML under the card, outside it.
+const PRE_PAD = '&#8203;&zwnj;&nbsp;'.repeat(60);
+export function emailShell(inner, { theme = config.theme, eyebrow = siteName(), preheader = '', footer = '' } = {}) {
   const t = theme;
   const bg = t.bg, card = t['bg-2'] || t.bg, ink = t.ink, accent2 = t['accent-2'] || t.accent;
-  return `
-<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;background:${bg};color:${ink};padding:32px 20px;">
-  <div style="max-width:560px;margin:0 auto;background:${card};border:1px solid ${accent2}40;border-radius:16px;padding:28px;">
-    <p style="margin:0 0 6px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:${accent2};">${escapeHtml(eyebrow)}</p>
+  const pre = preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${bg};opacity:0;">${escapeHtml(preheader)}${PRE_PAD}</div>` : '';
+  return `${pre}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${bg}" style="background:${bg};border-collapse:collapse;"><tr><td align="center" style="padding:28px 14px;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:${ink};">
+  <div style="max-width:560px;margin:0 auto;text-align:left;background:${card};border:1px solid ${accent2}40;border-radius:16px;padding:26px 22px;">
+    <p style="margin:0 0 6px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:${accent2};font-weight:700;">${escapeHtml(eyebrow)}</p>
     ${inner}
   </div>
-</div>`;
+  ${footer ? `<div style="max-width:560px;margin:0 auto;text-align:center;padding:18px 12px 0;">${footer}</div>` : ''}
+</td></tr></table>`;
 }
 
 export function loginEmailHtml({ link, name }) {

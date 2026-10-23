@@ -13,6 +13,25 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
+**2026-10-23 evening: mail FROM precisionfixmobile.com + polished emails.**
+koH: "verified, lets also polish the email delivered". Resend verified the
+domain in the new account; a direct send from bookings@precisionfixmobile.com
+to the Gmail went through. Env on Alex's site: `RESEND_API_KEY` = the new
+account's send-only key, `EMAIL_FROM` = `PrecisionFix <bookings@precisionfixmobile.com>`.
+`productionUrl` is now **https://precisionfixmobile.com** (canonical, sitemap,
+and every link the reminder cron writes: they had pointed at the old
+precisionfix-austin site). Email polish (`lib/booking-email.mjs`, `lib/email.mjs`,
+`lib/booking.mjs settingsFrom` gains `shop: { phone, sms }` from `contact`):
+inbox preview line on every booking mail; detail rows stacked label-over-value
+with hairlines (phone width no longer squeezes values); customer mail ends with
+a footer (name · Call or text the shop phone · the site, "Questions? Reply…" only
+when `EMAIL_REPLY_TO` is set); the owner's mails link the customer (Text, Call,
+Email) and the address (Map), with a quiet "Sent by your website" footer.
+Plain-text parts unchanged. 162 tests. `email.mjs` (the shell) also in
+`clients/_template` (148 pass); **`booking-email.mjs` and `booking.mjs` polish
+NOT lifted into the template** (PrecisionFix's copy is ahead with the deposit
+work; lift both together).
+
 **2026-10-23 later: notices now go to precisionfixmobile@gmail.com (LIVE).**
 koH: "hand can sign in but doesnt get an email. send emails to
 precisionfixmobile@gmail.com". Set on Alex's Netlify: `PRECISIONFIX_BOOKING_NOTIFY`,
@@ -28,6 +47,17 @@ add domains; never stored in a file). Once the domain is verified there: set
 <bookings@precisionfixmobile.com>` in ONE step (the new key cannot send as
 handprotocol.org, the old one cannot send as precisionfixmobile.com), redeploy,
 test.
+
+Same day, after the push (`e45172b`, deployed ready): a live test request
+returned `emailed: true` with the Gmail as owner recipient; test row
+`36cc7868…` (booking-test@handprotocol.org) deleted. Resend's records were added to
+the Netlify zone: CNAME `rsend` → `rsend.forge.rmta.net` (carries the MX
+feedback-smtp.us-east-1.amazonses.com + `v=spf1 include:amazonses.com ~all`,
+resolves), CNAME `send` → `send.forge.rmta.net` (**resolves to nothing**: check
+the value against Resend's page), TXT `_dmarc` `v=DMARC1; p=none;`, TXT
+`resend._domainkey` (DKIM). Resend still said "not verified" right after:
+press Verify in Resend, then do the one-step key + `EMAIL_FROM` swap above.
+Alex's own windows: Morning 8–12, Midday 12–6, Afternoon 6–10 PM, Mon–Sat 8–10.
 
 **2026-10-23: mail on PrecisionFix's own domain (first pass).**
 koH: Resend on PrecisionFix's domain for the booking system; a new PrecisionFix

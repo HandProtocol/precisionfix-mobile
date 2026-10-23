@@ -215,6 +215,8 @@ export function settingsFrom(doc) {
     reminders: REMINDER_CHOICES.includes(s.reminders) ? s.reminders : ENGINE_DEFAULTS.reminders, // absent in documents saved before the setting existed
     confirmWithin: { en: String(s.confirm_within || ''), es: String(s.confirm_within_es || '') },
     expect: { en: withoutDepositTalk(s.expect), es: withoutDepositTalk(s.expect_es) },
+    // the shop's own line, for the email footer (the site pack's contact section)
+    shop: { phone: String((doc && doc.contact && doc.contact.phone) || ''), sms: Boolean(doc && doc.contact && doc.contact.sms) },
   };
 }
 

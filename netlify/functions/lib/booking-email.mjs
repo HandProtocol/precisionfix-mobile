@@ -5,8 +5,8 @@
 // customer, the owner, and the site).
 
 import { BOOKING, config, siteEnv, siteName } from './config.mjs';
-import { emailShell, sendEmail, sendEmailWithRetry } from './email.mjs';
-import { escapeHtml as e } from './html.mjs';
+import { defaultReplyTo, emailShell, sendEmail, sendEmailWithRetry } from './email.mjs';
+import { escapeHtml as e, smsHref, telHref } from './html.mjs';
 import { fmtDayLong, fmtTime, fmtWhen, icsCalendar, icsEvent } from './booking.mjs';
 import { fmtMoney } from './stripe.mjs';
 import { SELF_REPORT_VERSION } from './booking-car.mjs';
@@ -77,6 +77,7 @@ const T = {
     owner_cancelled_title: 'The customer cancelled',
     owner_cancelled_body: 'This time is free again.',
     reply_note: 'Reply to this email to answer them directly.',
+    foot_reply: 'Questions? Reply to this email.', foot_call: 'Call or text', foot_owner: 'Sent by your website', map: 'Map', text_them: 'Text', call_them: 'Call', email_them: 'Email',
     sms_hi: (n) => `Hi ${n}, this is ${siteName()}.`,
     sms_confirmed: (w, svc) => `You are confirmed: ${w} (${svc}).`,
     sms_proposed: (w, svc) => `The time you asked for does not work, so you are confirmed for ${w} (${svc}) instead.`,
@@ -145,6 +146,7 @@ const T = {
     owner_cancelled_title: 'The customer cancelled',
     owner_cancelled_body: 'This time is free again.',
     reply_note: 'Reply to this email to answer them directly.',
+    foot_reply: '¿Preguntas? Responde a este correo.', foot_call: 'Llama o manda texto', foot_owner: 'Sent by your website', map: 'Map', text_them: 'Text', call_them: 'Call', email_them: 'Email',
     sms_hi: (n) => `Hola ${n}, te escribe ${siteName()}.`,
     sms_confirmed: (w, svc) => `Tu visita está confirmada: ${w} (${svc}).`,
     sms_proposed: (w, svc) => `La hora que pediste no es posible, así que tu visita queda confirmada para ${w} (${svc}).`,
@@ -269,12 +271,46 @@ export function bookingRows(b, { lang = 'en', intake = [], settings = null, forO
   return rows;
 }
 
+// Label over value, one row each, a hairline between: reads the same on a
+// phone and a desktop. A value may be { html } (already escaped links).
 function table(rows, theme = config.theme) {
-  const ink = theme.ink, muted = theme['ink-3'] || theme['ink-2'] || theme.ink;
-  return `<table role="presentation" style="border-collapse:collapse;width:100%;margin:14px 0 0;">${rows
-    .map(([l, v]) => `<tr><td style="padding:7px 12px 7px 0;vertical-align:top;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${muted};white-space:nowrap;">${e(l)}</td><td style="padding:7px 0;vertical-align:top;font-size:15px;line-height:1.5;color:${ink};">${e(v).replace(/\n/g, '<br>')}</td></tr>`)
+  const ink = theme.ink, muted = theme['ink-3'] || theme['ink-2'] || theme.ink, line = `${theme['accent-2'] || theme.accent}26`;
+  const val = (v) => (v && typeof v === 'object' ? v.html : e(v).replace(/\n/g, '<br>'));
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;width:100%;margin:16px 0 0;">${rows
+    .map(([l, v], i) => `<tr><td style="padding:11px 0;${i ? `border-top:1px solid ${line};` : ''}vertical-align:top;"><div style="margin:0 0 3px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:${muted};">${e(l)}</div><div style="font-size:15px;line-height:1.5;color:${ink};">${val(v)}</div></td></tr>`)
     .join('')}</table>`;
 }
+function link(href, label) {
+  const th = config.theme;
+  return `<a href="${e(href)}" style="color:${th['accent-2'] || th.accent};text-decoration:underline;">${e(label)}</a>`;
+}
+// The owner's rows with the customer one tap away: text, call, email, map.
+function ownerLinkRows(b, rows, s) {
+  return rows.map(([l, v]) => {
+    if (l === s.where && (b.address || b.city)) {
+      const q = [b.address, b.city].filter(Boolean).join(', ');
+      return [l, { html: `${e(q)}<br>${link(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, s.map)}` }];
+    }
+    if (l === s.who) {
+      const acts = [b.phone && smsHref(b.phone) ? link(smsHref(b.phone), `${s.text_them} ${b.phone}`) : '', b.phone && telHref(b.phone) ? link(telHref(b.phone), s.call_them) : '', b.email && usableEmail(b.email) ? link(`mailto:${b.email}`, s.email_them) : ''].filter(Boolean);
+      return [l, { html: `${e(b.name || '')}${acts.length ? `<br>${acts.join(' &nbsp;·&nbsp; ')}` : ''}` }];
+    }
+    return [l, v];
+  });
+}
+// The card plus the inbox preview line and the footer: the shop's line and
+// address for customers, a quiet sign-off for the owner.
+function shell(inner, { pre = '', settings = null, owner = false, lang = 'en' } = {}) {
+  const s = t(owner ? 'en' : lang), th = config.theme, muted = th['ink-3'] || th['ink-2'] || th.ink;
+  const site = config.productionUrl, host = site.replace(/^https?:\/\//, '');
+  const phone = settings && settings.shop ? settings.shop.phone : '';
+  const small = (x) => `<p style="margin:0 0 6px;font-size:12px;line-height:1.6;color:${muted};">${x}</p>`;
+  const footer = owner
+    ? small(`${e(s.foot_owner)} · ${link(site, host)}`)
+    : small([`<strong style="color:${th.ink};">${e(siteName())}</strong>`, phone && telHref(phone) ? `${e(s.foot_call)} ${link(telHref(phone), phone)}` : '', link(site, host)].filter(Boolean).join(' · ')) + (defaultReplyTo() ? small(e(s.foot_reply)) : '');
+  return emailShell(inner, { preheader: pre, footer });
+}
+
 function button(href, label, { ghost = false } = {}) {
   const th = config.theme;
   const accent = th.accent, on = th['on-accent'] || '#ffffff', ink = th.ink;
@@ -306,23 +342,23 @@ export function ownerNewRequestEmail({ booking: b, links, overlap = { requested:
   if (overlap.requested) chips.push(s.overlap_req(overlap.requested));
   for (const c of overlap.confirmed || []) chips.push(s.overlap_conf(c.name));
   const warn = chips.length ? `<p style="margin:12px 0 0;padding:10px 12px;border-radius:10px;background:${config.theme['bg-3'] || config.theme.bg};font-size:13px;">${chips.map(e).join('<br>')}</p>` : '';
-  const html = emailShell(`${h1(s.owner_new_title)}${para(s.owner_new_body(b))}${table(rows)}${warn}
+  const html = shell(`${h1(s.owner_new_title)}${para(s.owner_new_body(b))}${table(ownerLinkRows(b, rows, s))}${warn}
     <p style="margin:22px 0 0;">${button(links.confirm, s.confirm)}${button(links.decline, s.decline, { ghost: true })}${button(links.open, s.open, { ghost: true })}</p>
-    ${tiny(e(s.reply_note))}`);
+    ${tiny(e(s.reply_note))}`, { pre: `${whenText(b, 'en', settings)} · ${b.service_label}`, settings, owner: true });
   return { subject: s.owner_new_subject(b), html, text: textOf(rows, s.owner_new_title, s.owner_new_body(b), chips.join('\n'), `${s.confirm}: ${links.confirm}\n${s.decline}: ${links.decline}\n${s.open}: ${links.open}`) };
 }
 
 export function ownerCancelledEmail({ booking: b, links, intake = [], settings = null }) {
   const s = t('en');
   const rows = bookingRows(b, { lang: 'en', intake, settings, forOwner: true });
-  const html = emailShell(`${h1(s.owner_cancelled_title)}${para(s.owner_cancelled_body)}${table(rows)}<p style="margin:22px 0 0;">${button(links.open, s.open, { ghost: true })}</p>`);
+  const html = shell(`${h1(s.owner_cancelled_title)}${para(s.owner_cancelled_body)}${table(ownerLinkRows(b, rows, s))}<p style="margin:22px 0 0;">${button(links.open, s.open, { ghost: true })}</p>`, { pre: whenText(b, 'en', settings), settings, owner: true });
   return { subject: s.owner_cancelled_subject(b), html, text: textOf(rows, s.owner_cancelled_title, s.owner_cancelled_body, `${s.open}: ${links.open}`) };
 }
 
 export function customerReceivedEmail({ booking: b, manageUrl, confirmWithin = '', intake = [], settings = null }) {
   const lang = b.lang, s = t(lang);
   const rows = bookingRows(b, { lang, intake, settings });
-  const html = emailShell(`${h1(s.received_title)}${para(s.received_body(b.name))}${confirmWithin ? para(confirmWithin) : ''}${table(rows)}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`);
+  const html = shell(`${h1(s.received_title)}${para(s.received_body(b.name))}${confirmWithin ? para(confirmWithin) : ''}${table(rows)}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`, { pre: s.received_body(b.name), settings, lang });
   return { subject: s.received_subject(b.name), html, text: textOf(rows, s.received_title, s.received_body(b.name), confirmWithin, `${s.manage}: ${manageUrl}`) };
 }
 
@@ -332,7 +368,7 @@ export function customerConfirmedEmail({ booking: b, manageUrl, expect = '', int
   const title = proposed ? s.proposed_title : s.confirmed_title;
   const body = proposed ? s.proposed_body(b.name, askedFor) : s.confirmed_body(b.name);
   const dep = depositBlock(b, lang, payUrl);
-  const html = emailShell(`${h1(title)}${para(body)}${table(rows)}${dep.html}${expect ? `<p style="margin:18px 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">${e(s.expect)}</p>${para(expect)}` : ''}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`);
+  const html = shell(`${h1(title)}${para(body)}${table(rows)}${dep.html}${expect ? `<p style="margin:18px 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">${e(s.expect)}</p>${para(expect)}` : ''}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`, { pre: whenText(b, lang, settings), settings, lang });
   const when = whenText(b, lang, settings);
   return {
     subject: proposed ? s.proposed_subject(when) : s.confirmed_subject(when),
@@ -346,7 +382,7 @@ export function customerDepositPaidEmail({ booking: b, manageUrl, intake = [], s
   const lang = b.lang, s = t(lang), amt = depositAmt(b, lang);
   const rows = bookingRows(b, { lang, intake, settings });
   const body = s.dep_paid_body(b.name, amt, depositCredited());
-  const html = emailShell(`${h1(s.dep_paid_title)}${para(body)}${table(rows)}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`);
+  const html = shell(`${h1(s.dep_paid_title)}${para(body)}${table(rows)}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`, { pre: body, settings, lang });
   return { subject: s.dep_paid_subject(amt), html, text: textOf(rows, s.dep_paid_title, body, `${s.manage}: ${manageUrl}`) };
 }
 
@@ -354,14 +390,14 @@ export function customerDepositRefundedEmail({ booking: b, intake = [], settings
   const lang = b.lang, s = t(lang), amt = depositAmt(b, lang);
   const rows = bookingRows(b, { lang, intake, settings });
   const body = s.dep_refunded_body(b.name, amt);
-  const html = emailShell(`${h1(s.dep_refunded_title)}${para(body)}${table(rows)}`);
+  const html = shell(`${h1(s.dep_refunded_title)}${para(body)}${table(rows)}`, { pre: body, settings, lang });
   return { subject: s.dep_refunded_subject(amt), html, text: textOf(rows, s.dep_refunded_title, body) };
 }
 
 export function ownerDepositPaidEmail({ booking: b, links, intake = [], settings = null }) {
   const s = t('en'), amt = depositAmt(b, 'en');
   const rows = bookingRows(b, { lang: 'en', intake, settings, forOwner: true });
-  const html = emailShell(`${h1(s.owner_dep_paid_title)}${para(s.owner_dep_paid_body(b, amt))}${table(rows)}<p style="margin:22px 0 0;">${button(links.open, s.open, { ghost: true })}</p>`);
+  const html = shell(`${h1(s.owner_dep_paid_title)}${para(s.owner_dep_paid_body(b, amt))}${table(ownerLinkRows(b, rows, s))}<p style="margin:22px 0 0;">${button(links.open, s.open, { ghost: true })}</p>`, { pre: s.owner_dep_paid_body(b, amt), settings, owner: true });
   return { subject: s.owner_dep_paid_subject(b, amt), html, text: textOf(rows, s.owner_dep_paid_title, s.owner_dep_paid_body(b, amt), `${s.open}: ${links.open}`) };
 }
 
@@ -370,14 +406,14 @@ export function ownerDepositOverdueEmail({ booking: b, links, intake = [], setti
   const hours = BOOKING && BOOKING.deposit ? BOOKING.deposit.holdHours : 24;
   const rows = bookingRows(b, { lang: 'en', intake, settings, forOwner: true });
   const body = s.owner_dep_overdue_body(b, amt, hours);
-  const html = emailShell(`${h1(s.owner_dep_overdue_title)}${para(body)}${table(rows)}<p style="margin:22px 0 0;">${button(links.open, s.open)}</p>`);
+  const html = shell(`${h1(s.owner_dep_overdue_title)}${para(body)}${table(ownerLinkRows(b, rows, s))}<p style="margin:22px 0 0;">${button(links.open, s.open)}</p>`, { pre: body, settings, owner: true });
   return { subject: s.owner_dep_overdue_subject(b), html, text: textOf(rows, s.owner_dep_overdue_title, body, `${s.open}: ${links.open}`) };
 }
 
 export function customerDeclinedEmail({ booking: b, bookUrl, reason = '', intake = [], settings = null }) {
   const lang = b.lang, s = t(lang);
   const rows = bookingRows(b, { lang, intake, settings });
-  const html = emailShell(`${h1(s.declined_title)}${para(s.declined_body(b.name))}${reason ? para(`${s.reason}: ${reason}`) : ''}${table(rows)}<p style="margin:22px 0 0;">${button(bookUrl, s.book_again)}</p>`);
+  const html = shell(`${h1(s.declined_title)}${para(s.declined_body(b.name))}${reason ? para(`${s.reason}: ${reason}`) : ''}${table(rows)}<p style="margin:22px 0 0;">${button(bookUrl, s.book_again)}</p>`, { pre: s.declined_body(b.name), settings, lang });
   return { subject: s.declined_subject, html, text: textOf(rows, s.declined_title, s.declined_body(b.name), reason ? `${s.reason}: ${reason}` : '', `${s.book_again}: ${bookUrl}`) };
 }
 
@@ -388,7 +424,7 @@ export function customerCancelledEmail({ booking: b, bookUrl, reason = '', intak
   const rows = bookingRows(b, { lang, intake, settings });
   const why = String(reason || '').trim();
   const money = depositNote(b, lang);
-  const html = emailShell(`${h1(s.cancelled_title)}${para(s.cancelled_body(b.name))}${why ? para(`${s.reason}: ${why}`) : ''}${money ? para(money) : ''}${table(rows)}<p style="margin:22px 0 0;">${button(bookUrl, s.book_again)}</p>`);
+  const html = shell(`${h1(s.cancelled_title)}${para(s.cancelled_body(b.name))}${why ? para(`${s.reason}: ${why}`) : ''}${money ? para(money) : ''}${table(rows)}<p style="margin:22px 0 0;">${button(bookUrl, s.book_again)}</p>`, { pre: s.cancelled_body(b.name), settings, lang });
   return { subject: s.cancelled_subject, html, text: textOf(rows, s.cancelled_title, s.cancelled_body(b.name), why ? `${s.reason}: ${why}` : '', money, `${s.book_again}: ${bookUrl}`) };
 }
 
@@ -397,7 +433,7 @@ export function customerReminderEmail({ booking: b, manageUrl, expect = '', inta
   const lang = b.lang, all = t(lang);
   const s = soon ? { ...all, reminder_subject: all.reminder_soon_subject, reminder_title: all.reminder_soon_title, reminder_body: all.reminder_soon_body } : all;
   const rows = bookingRows(b, { lang, intake, settings });
-  const html = emailShell(`${h1(s.reminder_title)}${para(s.reminder_body(b.name))}${table(rows)}${expect ? `<p style="margin:18px 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">${e(s.expect)}</p>${para(expect)}` : ''}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`);
+  const html = shell(`${h1(s.reminder_title)}${para(s.reminder_body(b.name))}${table(rows)}${expect ? `<p style="margin:18px 0 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">${e(s.expect)}</p>${para(expect)}` : ''}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`, { pre: whenText(b, lang, settings), settings, lang });
   return { subject: s.reminder_subject(whenText(b, lang, settings)), html, text: textOf(rows, s.reminder_title, s.reminder_body(b.name), expect, `${s.manage}: ${manageUrl}`) };
 }
 

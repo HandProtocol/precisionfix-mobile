@@ -12,7 +12,7 @@ export default {
   name: 'PrecisionFix',
 
   // The owner's Namecheap domain replaces this once it is attached (Phase 5).
-  productionUrl: 'https://precisionfix-austin.netlify.app',
+  productionUrl: 'https://precisionfixmobile.com',
   netlifySiteId: '9f248232-981f-4a15-a891-a62f949f92fa',
 
   supabase: { projectRef: 'vconmgerblqbworcqkvr', schema: 'command' },
