@@ -18,7 +18,7 @@ export default {
   supabase: { projectRef: 'vconmgerblqbworcqkvr', schema: 'command' },
 
   // Bump whenever public/assets/** change (site + admin assets both carry it).
-  assetVersion: '20261023b',
+  assetVersion: '20261023c',
 
   fonts: base.fonts,
 
@@ -76,6 +76,11 @@ export default {
     permissions: ['Checkout Sessions', 'Refunds', 'Webhook Endpoints'],
     purpose: 'the $50 booking deposit',
   },
+
+  // Ask before booking (lib/questions.mjs): a customer account at /account/
+  // holds their conversations with Alex; he answers in /admin/ → Questions
+  // or by replying to the alert in Gmail once inboundDomain receives mail.
+  questions: { inboundDomain: '', langKey: 'pf-lang' },
 
   madeBy: { label: 'Made by HAND', href: 'https://handprotocol.org' },
 };

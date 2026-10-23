@@ -8,18 +8,21 @@ import { config, siteEnv } from './config.mjs';
 export const COOKIE = config.cookie;
 const SESSION_DAYS = 30;
 
-function secret() {
-  return siteEnv('SESSION_SECRET') || `${process.env.SUPABASE_SERVICE_ROLE_KEY || ''}::${config.slug}`;
+// scope '' = editors; 'customer' = customer accounts (lib/customers.mjs). A
+// separate key per scope, so a customer's cookie can never pass as an editor's.
+function secret(scope = '') {
+  const base = siteEnv('SESSION_SECRET') || `${process.env.SUPABASE_SERVICE_ROLE_KEY || ''}::${config.slug}`;
+  return scope ? `${base}::${scope}` : base;
 }
 
-export function signSession(editorId, now = Date.now()) {
+export function signSession(editorId, now = Date.now(), scope = '') {
   const exp = Math.floor(now / 1000) + SESSION_DAYS * 24 * 3600;
   const payload = `${editorId}.${exp}`;
-  const sig = crypto.createHmac('sha256', secret()).update(payload).digest('base64url');
+  const sig = crypto.createHmac('sha256', secret(scope)).update(payload).digest('base64url');
   return `${Buffer.from(payload).toString('base64url')}.${sig}`;
 }
 
-export function verifySession(token, now = Date.now()) {
+export function verifySession(token, now = Date.now(), scope = '') {
   if (typeof token !== 'string' || token.length > 400) return null;
   const dot = token.lastIndexOf('.');
   if (dot < 1) return null;
@@ -29,7 +32,7 @@ export function verifySession(token, now = Date.now()) {
   } catch (_) {
     return null;
   }
-  const expected = crypto.createHmac('sha256', secret()).update(payload).digest('base64url');
+  const expected = crypto.createHmac('sha256', secret(scope)).update(payload).digest('base64url');
   const given = token.slice(dot + 1);
   if (expected.length !== given.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(given))) {
     return null;
@@ -49,8 +52,8 @@ export function signPayload(payload) {
 // Seconds since the epoch when this cookie was signed (from its expiry), or
 // 0 for a cookie that does not verify. Used to refuse cookies older than a
 // password change, and to call a session "fresh" right after sign-in.
-export function sessionIssuedAt(token, now = Date.now()) {
-  if (!verifySession(token, now)) return 0;
+export function sessionIssuedAt(token, now = Date.now(), scope = '') {
+  if (!verifySession(token, now, scope)) return 0;
   const payload = Buffer.from(token.slice(0, token.lastIndexOf('.')), 'base64url').toString('utf8');
   return Number(payload.split('.')[1]) - SESSION_DAYS * 24 * 3600;
 }
@@ -73,7 +76,7 @@ export function parseCookies(header) {
   return out;
 }
 
-export function sessionCookie(value, { clear = false } = {}) {
+export function sessionCookie(value, { clear = false, name = COOKIE } = {}) {
   const maxAge = clear ? 0 : SESSION_DAYS * 24 * 3600;
-  return `${COOKIE}=${clear ? '' : encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+  return `${name}=${clear ? '' : encodeURIComponent(value)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 }

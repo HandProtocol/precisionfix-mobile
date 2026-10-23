@@ -183,6 +183,19 @@ export function normalizePayments(p) {
   return { provider, webhookPath, events, permissions, purpose: String(p.purpose || 'payments') };
 }
 
+// questions: customers ask the owner before they book (lib/questions.mjs).
+// A customer account (email link or password) holds their conversations.
+//   inboundDomain   where email replies land (Resend receiving MX). '' = replies by email go to EMAIL_REPLY_TO instead
+//   langKey         the localStorage key the site keeps its EN/ES pick under
+// null = none.
+export function normalizeQuestions(q) {
+  if (!q) return null;
+  must(typeof q === 'object', 'questions must be an object');
+  const inboundDomain = String(q.inboundDomain || '').trim().toLowerCase();
+  must(!inboundDomain || /^[a-z0-9.-]+\.[a-z]{2,}$/.test(inboundDomain), 'questions.inboundDomain must be a bare domain');
+  return { inboundDomain, langKey: String(q.langKey || '') };
+}
+
 export function normalizeConfig(c) {
   must(c && typeof c === 'object', 'must export an object');
   must(/^[a-z0-9][a-z0-9-]{1,48}$/.test(c.slug || ''), 'slug must be lowercase [a-z0-9-], 2-49 chars');
@@ -219,6 +232,8 @@ export function normalizeConfig(c) {
     booking: normalizeBooking(c.booking),
     // Owner-connected Stripe (see normalizePayments above). null = none.
     payments: normalizePayments(c.payments),
+    // Customer questions before booking (see normalizeQuestions above). null = none.
+    questions: normalizeQuestions(c.questions),
     tables: {
       editors: `${dbPrefix}_editors`,
       login_tokens: `${dbPrefix}_login_tokens`,
@@ -228,10 +243,13 @@ export function normalizeConfig(c) {
       bookings: `${dbPrefix}_bookings`,
       // only with config.payments: an unknown {secrets} placeholder throws in lib/db.mjs
       ...(c.payments ? { secrets: `${dbPrefix}_secrets` } : {}),
+      // only with config.questions
+      ...(c.questions ? { customers: `${dbPrefix}_customers`, customer_tokens: `${dbPrefix}_customer_tokens`, threads: `${dbPrefix}_threads`, messages: `${dbPrefix}_messages` } : {}),
     },
     bucket: slug,
     cacheTag: slug,
     cookie: `${dbPrefix}_session`,
+    customerCookie: `${dbPrefix}_customer`,
   };
 }
 
@@ -242,6 +260,7 @@ export const BUCKET = config.bucket;
 export const BOOKING = config.booking && config.booking.mode === 'request' ? config.booking : null;
 // Owner-connected payments (the Payments screen in /admin/), or null.
 export const PAYMENTS = config.payments;
+export const QUESTIONS = config.questions;
 
 // Resolves a config list that may be a function of the content document.
 export function resolveList(v, content) {

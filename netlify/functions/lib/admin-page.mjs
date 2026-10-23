@@ -10,7 +10,7 @@
 // Photos / Menu one tap away. Places are routes (#home, #bookings,
 // #content/<section>, #look, #payments …) so the phone's back button works.
 
-import { BOOKING, PAYMENTS, config } from './config.mjs';
+import { BOOKING, PAYMENTS, QUESTIONS, config } from './config.mjs';
 import { escapeHtml as e, faviconLink } from './html.mjs';
 import { adminThemeVars } from './theme.mjs';
 import { checklistHtml, checklistItems, looksHtml } from './checklist.mjs';
@@ -116,6 +116,7 @@ const ICONS = {
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
   out: '<path d="M14.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-3.5"/><path d="M10 16.5 5.5 12 10 7.5M5.5 12H15"/>',
+  chat: '<path d="M4.5 5.5h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 3.5V17.5h-1A1.5 1.5 0 0 1 3 16V7a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M8 10h8M8 13.5h5"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/>',
 };
 export function icon(name) {
@@ -126,10 +127,11 @@ export function icon(name) {
 // route admin.js understands (#home, #bookings, #content/<section> …);
 // `when` drops places a site does not have. The Home tiles, the phone dock
 // and the menu's "Find" box all read from this one list.
-export function destinations({ booking = BOOKING, payments = PAYMENTS, themes = config.themes, tasks = checklistItems() } = {}) {
+export function destinations({ booking = BOOKING, payments = PAYMENTS, questions = QUESTIONS, themes = config.themes, tasks = checklistItems() } = {}) {
   const all = [
     { group: 'Today', go: 'home', icon: 'home', label: 'Home', sub: 'Everything at a glance' },
     { group: 'Today', go: 'bookings', icon: 'bookings', label: 'Bookings', sub: 'Requests, confirmed jobs, add one by hand', badge: 'bookingcount', when: Boolean(booking) },
+    { group: 'Today', go: 'questions', icon: 'chat', label: 'Questions', sub: 'Customers asking before they book', badge: 'questioncount', when: Boolean(questions) },
     { group: 'Your site', go: 'content', icon: 'content', label: 'Words and info', sub: 'Every line on your site, phone, email, services' },
     { group: 'Your site', go: 'media', icon: 'media', label: 'Photos', sub: 'Add, replace, reorder', badge: 'mediacount' },
     { group: 'Your site', go: 'look', icon: 'look', label: 'Look', sub: 'Colours and style, previewed live', when: Boolean(themes) },
@@ -182,6 +184,30 @@ function dockHtml(list) {
     ${items.map((d) => navButton({ ...d, label: short[d.go] || d.label }, 'dock__btn')).join('\n    ')}
     <button class="dock__btn" type="button" id="dockmenu" aria-controls="menu" aria-expanded="false">${icon('menu')}<span class="dock__btn__label">Menu</span></button>
   </nav>`;
+}
+
+// /admin/ → Questions (config.questions): the list of conversations, and one
+// conversation with its answer box. admin.js fills both from /api/admin/questions.
+function questionsPanel() {
+  return `<!-- Questions -->
+      <section class="panel panel--single" id="panel-questions" hidden>
+        <div class="content narrow qs">
+          <header class="panel__head"><div><h2>Questions</h2><p class="muted">People ask here before they book, from <a href="/account/" target="_blank" rel="noopener">your site's Ask page</a>. Your answer is emailed to them and shows on their page.</p><p class="muted tiny" id="qsinbound" hidden></p></div></header>
+          <div id="qslist" class="qs__list"></div>
+          <div id="qsthread" class="qs__thread" hidden>
+            <div class="row qs__bar">
+              <button class="btn btn--ghost btn--sm" type="button" id="qsback">← All questions</button>
+              <button class="btn btn--ghost btn--sm" type="button" id="qsstatus"></button>
+            </div>
+            <div class="qs__who" id="qswho"></div>
+            <ol class="qs__chat" id="qschat" aria-live="polite"></ol>
+            <form id="qsreply" class="qs__reply">
+              <label class="field"><span>Your answer</span><textarea name="body" rows="4" maxlength="5000" required placeholder="Type your answer. They get it by email."></textarea></label>
+              <div class="row"><button class="btn btn--primary" type="submit" id="qssend">Send answer</button></div>
+            </form>
+          </div>
+        </div>
+      </section>`;
 }
 
 // /admin/ → Payments (config.payments): the steps to get a Stripe key, the
@@ -385,6 +411,8 @@ ${
       </section>
 
       ${BOOKING ? bookingsPanel() : ''}
+
+      ${QUESTIONS ? questionsPanel() : ''}
 
       ${PAYMENTS ? paymentsPanel() : ''}
 

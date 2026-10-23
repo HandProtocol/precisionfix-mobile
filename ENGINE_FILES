@@ -6,14 +6,17 @@
 # Generated files (netlify.toml, public/img/placeholder/) are regenerated
 # from the client's own config after a sync.
 netlify/functions/admin-page.mjs
+netlify/functions/account.mjs
 netlify/functions/admin.mjs
 netlify/functions/auth.mjs
 netlify/functions/booking.mjs
 netlify/functions/booking-reminders.mjs
 netlify/functions/content.mjs
+netlify/functions/inbound.mjs
 netlify/functions/render.mjs
 netlify/functions/sitemap.mjs
 netlify/functions/submission-created.mjs
+netlify/functions/lib/account-page.mjs
 netlify/functions/lib/admin-page.mjs
 netlify/functions/lib/blocks.mjs
 netlify/functions/lib/booking.mjs
@@ -30,12 +33,17 @@ netlify/functions/lib/booking-token.mjs
 netlify/functions/lib/checklist.mjs
 netlify/functions/lib/config.mjs
 netlify/functions/lib/content.mjs
+netlify/functions/lib/customers.mjs
 netlify/functions/lib/db.mjs
 netlify/functions/lib/email.mjs
 netlify/functions/lib/forms.mjs
 netlify/functions/lib/html.mjs
 netlify/functions/lib/http.mjs
+netlify/functions/lib/inbound.mjs
 netlify/functions/lib/payments.mjs
+netlify/functions/lib/questions.mjs
+netlify/functions/lib/questions-admin.mjs
+netlify/functions/lib/questions-email.mjs
 netlify/functions/lib/sanitize.mjs
 netlify/functions/lib/secrets.mjs
 netlify/functions/lib/password.mjs
@@ -43,6 +51,8 @@ netlify/functions/lib/session.mjs
 netlify/functions/lib/site.mjs
 netlify/functions/lib/stripe.mjs
 netlify/functions/lib/theme.mjs
+public/account/account.css
+public/account/account.js
 public/admin/admin.css
 public/admin/admin.js
 public/booking/booking.css
@@ -72,5 +82,6 @@ tests/sanitize.test.mjs
 tests/auth-password.test.mjs
 tests/session.test.mjs
 tests/payments.test.mjs
+tests/questions.test.mjs
 .gitignore
 ENGINE_FILES

@@ -7,7 +7,7 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || d).querySelectorAll(s)); };
   var DRAFT_KEY = 'site-draft-v1';
 
-  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0, bookings: null, payments: null, route: 'home' };
+  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0, bookings: null, payments: null, questions: null, route: 'home' };
 
   // ---------------------------------------------------------------- utils --
   function h(tag, attrs, children) {
@@ -56,7 +56,7 @@
   // #media, #look, #payments, #setup, #editors, #history). go() shows it and
   // pushes history, so the phone's back gesture steps back through places.
   var PHONE = window.matchMedia ? window.matchMedia('(max-width: 900px)') : { matches: false };
-  var TITLES = { home: 'Home', bookings: 'Bookings', content: 'Words and info', media: 'Photos', look: 'Look', payments: 'Payments', setup: 'Setup', account: 'Your sign-in', editors: 'Who can edit', history: 'Publish history' };
+  var TITLES = { home: 'Home', bookings: 'Bookings', questions: 'Questions', content: 'Words and info', media: 'Photos', look: 'Look', payments: 'Payments', setup: 'Setup', account: 'Your sign-in', editors: 'Who can edit', history: 'Publish history' };
   function showLogin() {
     $('#app').dataset.state = 'login';
     $('#login').hidden = false; $('#shell').hidden = true;
@@ -73,7 +73,7 @@
     var name = r.split('/')[0], sec = r.split('/')[1] || '';
     if (!name || !$('#panel-' + name)) return { name: 'home', sec: '' };
     if (name === 'editors' && state.editor && state.editor.role !== 'owner') return { name: 'home', sec: '' };
-    return { name: name, sec: name === 'content' ? sec : '' };
+    return { name: name, sec: name === 'content' || name === 'questions' ? sec : '' };
   }
   function routeOf(r) { return r.name + (r.sec ? '/' + r.sec : ''); }
   // go('content/calendar') · go('bookings', { replace: true })
@@ -102,6 +102,7 @@
     if (name === 'account') renderAccount();
     if (name === 'history') loadHistory();
     if (name === 'bookings') loadBookings();
+    if (name === 'questions') openQuestions(r.sec); else stopQuestionPoll();
     if (name === 'payments') loadPayments();
     if (name === 'look') mountLooks();
     if (name === 'home') renderHome();
@@ -272,7 +273,7 @@
   }
   async function enter() {
     await loadSite();
-    await Promise.all([loadBookingSummary(), loadPayments({ quiet: true })]);
+    await Promise.all([loadBookingSummary(), loadQuestionSummary(), loadPayments({ quiet: true })]);
     showShell();
     // Land where the link says (#bookings from an email, a reload on #content/hours …), else Home.
     show(parseRoute(location.hash));
@@ -805,6 +806,15 @@
         ]),
       ]));
     }
+    if ($('#panel-questions')) {
+      var unread = state.questions && state.questions.unread ? state.questions.unread : 0;
+      box.appendChild(homeCard(unread ? 'hcard--hot' : '', [
+        h('p', { class: 'hcard__k', text: 'Questions' }),
+        h('p', { class: 'hcard__big' }, [h('b', { text: String(unread) }), unread === 1 ? ' question waiting for an answer' : unread ? ' questions waiting for an answer' : ' new questions. All answered.']),
+        h('p', { class: 'hcard__line muted', text: 'People ask before they book, from your site. They get your answer by email.' }),
+        h('div', { class: 'row' }, [h('button', { class: 'btn btn--sm ' + (unread ? 'btn--primary' : 'btn--ghost'), type: 'button', 'data-go': 'questions', text: unread ? 'Answer questions' : 'Open questions' })]),
+      ]));
+    }
     if (state.setupOpen && $('#panel-setup')) {
       var bar = h('i'); bar.style.setProperty('--p', state.setupTotal ? state.setupDone / state.setupTotal : 0);
       box.appendChild(homeCard('', [
@@ -956,6 +966,92 @@
     } catch (err) { toast(err.message, 'bad'); }
   }
 
+
+  // ----------------------------------------------------------- questions --
+  // Customers ask from /account/ before booking. The list, newest first with
+  // the unread ones lit; one conversation with an answer box. While this
+  // place is open, new messages show up on their own.
+  var QS = { list: null, open: null, timer: 0 };
+  var qsPanel = $('#panel-questions');
+  async function loadQuestionSummary() {
+    if (!qsPanel) return;
+    try { state.questions = await api('GET', '/api/admin/questions/summary'); } catch (_) { state.questions = null; }
+    setBadge('questioncount', state.questions && state.questions.unread);
+    if (state.route === 'home') renderHome();
+  }
+  if (qsPanel) setInterval(function () { if (state.editor && !d.hidden && state.route !== 'questions') loadQuestionSummary(); }, 60000);
+  function stopQuestionPoll() { clearInterval(QS.timer); QS.timer = 0; }
+  function openQuestions(id) {
+    stopQuestionPoll();
+    if (id) qsOpen(id); else qsLoadList();
+    QS.timer = setInterval(function () { if (d.hidden) return; if (QS.open) qsOpen(QS.open.thread.id, true); else qsLoadList(true); }, 20000);
+  }
+  async function qsLoadList(quiet) {
+    try { QS.list = await api('GET', '/api/admin/questions'); } catch (err) { if (!quiet) toast(err.message, 'bad'); return; }
+    QS.open = null;
+    state.questions = { unread: QS.list.unread }; setBadge('questioncount', QS.list.unread);
+    var note = $('#qsinbound'); note.hidden = false;
+    note.textContent = QS.list.inbound ? 'You can also answer by replying to the email alert in your inbox.' : 'Answer here. (Replying to the email alert writes to the customer directly, outside this page.)';
+    $('#qsthread').hidden = true;
+    var box = $('#qslist'); box.hidden = false; box.innerHTML = '';
+    if (!QS.list.threads.length) { box.appendChild(h('p', { class: 'bk__empty', text: 'No questions yet. When someone asks from your site, it shows here and you get an email.' })); return; }
+    QS.list.threads.forEach(function (t) {
+      var c = t.customer || {};
+      box.appendChild(h('button', { type: 'button', class: 'qs__item' + (t.owner_unread ? ' is-unread' : '') + (t.status === 'closed' ? ' is-closed' : ''), onclick: function () { go('questions/' + t.id); } }, [
+        h('span', { class: 'qs__dot' }),
+        h('strong', { text: c.name || c.email || 'Someone' }),
+        h('span', { class: 'qs__age', text: bkAge(t.last_message_at) }),
+        h('span', { class: 'qs__subj', text: t.subject }),
+        h('span', { class: 'qs__state', text: t.status === 'closed' ? 'Closed' : t.last_author === 'owner' ? 'You answered' : 'Waiting for you' }),
+      ]));
+    });
+  }
+  async function qsOpen(id, quiet) {
+    var r;
+    try { r = await api('GET', '/api/admin/questions/' + encodeURIComponent(id)); } catch (err) { if (!quiet) { toast(err.message, 'bad'); go('questions', { replace: true }); } return; }
+    var first = !QS.open || QS.open.thread.id !== id;
+    var before = QS.open ? QS.open.messages.length : 0;
+    QS.open = r;
+    $('#qslist').hidden = true; $('#qsthread').hidden = false;
+    var c = r.customer || {}, t = r.thread;
+    var who = $('#qswho'); who.innerHTML = '';
+    var digits = String(c.phone || '').replace(/[^\d+]/g, '');
+    who.appendChild(h('p', {}, [h('strong', { text: c.name || c.email }), t.car ? h('span', { class: 'muted', text: ' · ' + t.car }) : null]));
+    who.appendChild(h('p', { class: 'row qs__reach' }, [
+      digits ? h('a', { class: 'btn btn--ghost btn--sm', href: 'sms:' + digits, text: 'Text ' + c.phone }) : null,
+      digits ? h('a', { class: 'btn btn--ghost btn--sm', href: 'tel:' + digits, text: 'Call' }) : null,
+      c.email ? h('a', { class: 'btn btn--ghost btn--sm', href: 'mailto:' + c.email, text: c.email }) : null,
+    ]));
+    $('#qsstatus').textContent = t.status === 'closed' ? 'Reopen' : 'Mark done';
+    var ol = $('#qschat'); ol.innerHTML = '';
+    r.messages.forEach(function (m) {
+      ol.appendChild(h('li', { class: m.author === 'owner' ? 'is-me' : 'is-them' }, [m.body, h('span', { class: 'qs__meta', text: (m.author === 'owner' ? 'You' : (c.name || 'Customer')) + ' · ' + fmtDate(m.createdAt) + (m.via === 'email' ? ' · by email' : '') })]));
+    });
+    if (first || r.messages.length !== before) ol.scrollTop = ol.scrollHeight;
+    if (first && !quiet) { window.scrollTo(0, 0); }
+    loadQuestionSummary();
+  }
+  if (qsPanel) {
+    $('#qsback').addEventListener('click', function () { go('questions'); });
+    $('#qsstatus').addEventListener('click', async function () {
+      if (!QS.open) return;
+      var next = QS.open.thread.status === 'closed' ? 'open' : 'closed';
+      try { await api('PATCH', '/api/admin/questions/' + QS.open.thread.id, { status: next }); toast(next === 'closed' ? 'Marked done.' : 'Reopened.', 'ok'); if (next === 'closed') go('questions'); else qsOpen(QS.open.thread.id, true); } catch (err) { toast(err.message, 'bad'); }
+    });
+    $('#qsreply').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var f = e.target, btn = $('#qssend'), text = f.body.value.trim();
+      if (!text || !QS.open) return;
+      btn.disabled = true;
+      try {
+        var r = await api('POST', '/api/admin/questions/' + QS.open.thread.id, { body: text });
+        f.body.value = '';
+        toast(r.emailed ? 'Sent. They were emailed.' : 'Saved, but the email did not go out. They see it when they open their page.', r.emailed ? 'ok' : '');
+        await qsOpen(QS.open.thread.id, true);
+      } catch (err) { toast(err.message, 'bad'); }
+      btn.disabled = false;
+    });
+  }
 
   // ------------------------------------------------------------ bookings --
   // The Bookings tab (config.booking): requested inbox, confirmed by day,

@@ -455,6 +455,7 @@ ${
         ${c.contact.body ? bi('p', c.contact.body, c.contact.body_es, 'contact__body') : ''}
         ${tel ? `<a class="contact__phone" href="${e(tel)}">${e(c.contact.phone)}</a>` : ''}
         <div class="contact__actions">
+          ${config.questions ? `<a class="btn btn--primary" href="/account/">${B.ICONS.message}${bi('span', 'Ask a question', 'Haz una pregunta')}</a>` : ''}
           ${tel ? `<a class="btn btn--ghost" href="${e(tel)}">${B.ICONS.phone}${bi('span', 'Call', 'Llamar')}</a>` : ''}
           ${sms ? `<a class="btn btn--ghost" href="${e(sms)}">${B.ICONS.message}${bi('span', 'Text', 'Texto')}</a>` : ''}
           ${mail ? `<a class="btn btn--ghost" href="${e(mail)}">${B.ICONS.mail}<span>Email</span></a>` : ''}

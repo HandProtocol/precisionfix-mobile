@@ -394,3 +394,27 @@ body.has-preview{overflow:hidden}
 .pw input{padding-right:4.5rem}
 .pw__show{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--ink-2);font:inherit;font-size:.8rem;font-weight:600;padding:.45rem .6rem;border-radius:var(--r);cursor:pointer}
 .pw__show:hover,.pw__show:focus-visible{color:var(--ink);background:var(--bg-3)}
+
+/* Questions (config.questions) */
+.qs__list{display:grid;gap:.5rem}
+.qs__item{display:grid;grid-template-columns:auto 1fr auto;gap:.15rem .7rem;align-items:center;text-align:left;width:100%;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-lg);padding:.85rem 1rem;color:var(--ink);font:inherit;cursor:pointer}
+.qs__item:hover{border-color:var(--line-2)}
+.qs__dot{width:.55rem;height:.55rem;border-radius:50%}
+.qs__item.is-unread{border-color:var(--accent)}
+.qs__item.is-unread .qs__dot{background:var(--accent)}
+.qs__item.is-closed{opacity:.65}
+.qs__age{font-size:.78rem;color:var(--ink-3);white-space:nowrap}
+.qs__subj{grid-column:2/4;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qs__state{grid-column:2/4;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.qs__item.is-unread .qs__state{color:var(--accent-2)}
+.qs__thread{display:grid;gap:1rem}
+.qs__thread[hidden],.qs__list[hidden]{display:none}
+.qs__bar{justify-content:space-between}
+.qs__who{display:grid;gap:.4rem}
+.qs__reach{flex-wrap:wrap}
+.qs__chat{list-style:none;display:grid;gap:.6rem;max-height:55vh;overflow-y:auto;padding:.25rem}
+.qs__chat li{max-width:85%;padding:.65rem .85rem;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.qs__chat .is-me{justify-self:end;background:var(--accent);color:var(--on-accent);border-bottom-right-radius:4px}
+.qs__chat .is-them{justify-self:start;background:var(--bg-3);border:1px solid var(--line);border-bottom-left-radius:4px}
+.qs__meta{display:block;margin-top:.3rem;font-size:.72rem;opacity:.75;white-space:normal}
+.qs__reply{display:grid;gap:.6rem}
