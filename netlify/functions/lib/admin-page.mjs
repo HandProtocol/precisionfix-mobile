@@ -258,13 +258,20 @@ ${fontLinks()}
     <div class="login__card">
       ${brand()}
       <h1>Edit your site</h1>
-      <p class="muted">Sign in with your password, or leave it empty and we’ll email you a one-time link.</p>
+      <p class="muted">Sign in with your email and password.</p>
       <form id="loginform" class="stack">
         <label class="field"><span>Email</span><input type="email" name="email" autocomplete="username" required placeholder="you@example.com"></label>
-        <label class="field"><span>Password <small>only if you set one</small></span><span class="pw"><input type="password" name="password" autocomplete="current-password" maxlength="200"><button class="pw__show" type="button" data-pwshow aria-pressed="false">Show</button></span></label>
-        <button class="btn btn--primary" type="submit" id="loginbtn">Email me a sign-in link</button>
-        <button class="btn btn--ghost" type="button" id="loginlink" hidden>Email me a link instead</button>
+        <label class="field"><span>Password</span><span class="pw"><input type="password" name="password" autocomplete="current-password" required maxlength="200"><button class="pw__show" type="button" data-pwshow aria-pressed="false">Show</button></span></label>
+        <button class="btn btn--primary" type="submit" id="loginbtn">Sign in</button>
       </form>
+      <button class="btn btn--ghost login__or" type="button" id="loginlink" aria-expanded="false" aria-controls="linkdrop">Or send magic link</button>
+      <div class="login__drop" id="linkdrop" hidden>
+        <form id="linkform" class="stack">
+          <p class="tiny muted">No password yet, or forgot it? We’ll email you a one-time link that signs you in.</p>
+          <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required placeholder="you@example.com"></label>
+          <button class="btn btn--primary" type="submit" id="linkbtn">Email me the link</button>
+        </form>
+      </div>
       <p class="login__msg" id="loginmsg" role="status" aria-live="polite"></p>
       <p class="tiny muted"><a href="/">← Back to the site</a></p>
     </div>

@@ -27,9 +27,9 @@ emails, `passwordProblem`: 10+ chars, not the email, not common),
 the lock; changing a password stamps `sessions_after` so every other device is
 signed out; no current password needed within 15 min of signing in, which is
 the forgot-password path), `lib/session.mjs sessionIssuedAt`, `lib/http.mjs
-currentEditor` (refuses cookies older than `sessions_after`), login screen (one
-form: empty password = "Email me a sign-in link", typed = "Sign in" + "Email me
-a link instead", Show toggle), new **Your sign-in** place in the menu for every
+currentEditor` (refuses cookies older than `sessions_after`), login screen (email +
+password + Sign in; "Or send magic link" drops open an email-only form; Show
+toggle; koH's layout, `assetVersion` `20261023b`), new **Your sign-in** place in the menu for every
 editor, the sign-in email restyled on the shared shell (preview line, footer,
 password nudge). `gen-migration.mjs --passwords` for other live sites.
 `assetVersion` `20261023a`. 169 tests here, 155 in the template. **Other live

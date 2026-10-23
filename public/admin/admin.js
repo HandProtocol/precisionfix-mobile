@@ -177,37 +177,39 @@
   function setBadge(name, n) { $$('[data-badge="' + name + '"]').forEach(function (p) { p.textContent = n ? String(n) : ''; }); }
 
   // ---------------------------------------------------------------- auth --
-  // One form, two ways in: a password when typed, otherwise an email link.
-  // The main button says which one will happen.
-  function loginMode() {
-    var typed = Boolean($('#loginform').password.value);
-    $('#loginbtn').textContent = typed ? 'Sign in' : 'Email me a sign-in link';
-    $('#loginlink').hidden = !typed;
+  // Email + password signs in. "Or send magic link" drops a second form open
+  // that only asks for the email; the link is also how a forgotten password
+  // gets reset (sign in by link, then Your sign-in).
+  function loginMsg(cls, text) { var m = $('#loginmsg'); m.className = 'login__msg' + (cls ? ' ' + cls : ''); m.textContent = text; }
+  function toggleLinkDrop(open) {
+    var drop = $('#linkdrop'), btn = $('#loginlink');
+    drop.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    var typed = $('#loginform').email.value.trim(), lf = $('#linkform');
+    if (typed && !lf.email.value) lf.email.value = typed;
+    lf.email.focus();
   }
-  async function sendLink() {
-    var f = $('#loginform'), msg = $('#loginmsg'), email = f.email.value.trim();
-    if (!f.email.checkValidity()) { f.email.reportValidity(); return; }
-    msg.className = 'login__msg'; msg.textContent = 'Sending…';
+  $('#loginlink').addEventListener('click', function () { toggleLinkDrop($('#linkdrop').hidden); });
+  $('#linkform').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var f = e.target, btn = $('#linkbtn');
+    btn.disabled = true; loginMsg('', 'Sending…');
     try {
-      var r = await api('POST', '/api/auth/request', { email: email });
-      msg.className = 'login__msg ok';
-      msg.textContent = r.sent === false ? 'Email isn’t set up on this site yet — ask HAND to add the link from the logs.' : 'Check your inbox for a sign-in link. It works once and expires in 20 minutes.';
-    } catch (err) { msg.className = 'login__msg bad'; msg.textContent = err.message; }
-  }
-  $('#loginform').password.addEventListener('input', loginMode);
-  $('#loginlink').addEventListener('click', async function () { this.disabled = true; await sendLink(); this.disabled = false; });
+      var r = await api('POST', '/api/auth/request', { email: f.email.value.trim() });
+      loginMsg('ok', r.sent === false ? 'Email isn’t set up on this site yet — ask HAND to add the link from the logs.' : 'Check your inbox for a sign-in link. It works once and expires in 20 minutes.');
+    } catch (err) { loginMsg('bad', err.message); }
+    btn.disabled = false;
+  });
   $('#loginform').addEventListener('submit', async function (e) {
     e.preventDefault();
-    var f = e.target, msg = $('#loginmsg'), btn = $('#loginbtn');
-    btn.disabled = true;
-    if (!f.password.value) { await sendLink(); btn.disabled = false; return; }
-    msg.className = 'login__msg'; msg.textContent = 'Signing in…';
+    var f = e.target, btn = $('#loginbtn');
+    btn.disabled = true; loginMsg('', 'Signing in…');
     try {
       var r = await api('POST', '/api/auth/password', { email: f.email.value.trim(), password: f.password.value });
-      f.password.value = ''; loginMode(); msg.textContent = '';
+      f.password.value = ''; loginMsg('', '');
       state.editor = Object.assign({}, r.editor, { fresh: true });
       await enter();
-    } catch (err) { msg.className = 'login__msg bad'; msg.textContent = err.message; f.password.select(); }
+    } catch (err) { loginMsg('bad', err.message); f.password.select(); }
     btn.disabled = false;
   });
   // Show / Hide on every password field
