@@ -80,43 +80,26 @@ export function emailShell(inner, { theme = config.theme, eyebrow = siteName(), 
 </td></tr></table>`;
 }
 
-export function loginEmailHtml({ link, name }) {
+// The sign-in email: the themed shell, one button, the link spelled out for
+// a mail app that drops buttons, and a nudge toward a password next time.
+export function loginEmailHtml({ link, name, hasPassword = false }) {
   const t = config.theme;
-  const bg = t.bg, card = t['bg-2'] || t.bg, ink = t.ink, muted = t['ink-3'] || t['ink-2'] || t.ink, accent = t.accent, accent2 = t['accent-2'] || t.accent, onAccent = t['on-accent'] || '#ffffff';
-  return `
-<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;background:${bg};color:${ink};padding:40px 24px;">
-  <div style="max-width:520px;margin:0 auto;background:${card};border:1px solid ${accent2}40;border-radius:16px;padding:32px;">
-    <p style="margin:0 0 8px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:${accent2};">${escapeHtml(name)}</p>
-    <h1 style="margin:0 0 16px;font-size:24px;line-height:1.2;color:${ink};">Sign in to edit your site</h1>
-    <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${ink};">Tap the button to open the editor. The link works once and expires in 20 minutes.</p>
-    <p style="margin:0 0 24px;"><a href="${escapeHtml(link)}" style="display:inline-block;background:${accent};color:${onAccent};text-decoration:none;font-weight:700;padding:14px 22px;border-radius:999px;">Open the editor</a></p>
-    <p style="margin:0;font-size:12px;line-height:1.6;color:${muted};">If the button doesn't work, paste this into your browser:<br><span style="word-break:break-all;color:${accent2};">${escapeHtml(link)}</span></p>
-    <p style="margin:16px 0 0;font-size:12px;color:${muted};">Didn't request this? You can ignore it.</p>
-  </div>
-</div>`;
+  const ink = t.ink, muted = t['ink-3'] || t['ink-2'] || t.ink, accent = t.accent, accent2 = t['accent-2'] || t.accent, onAccent = t['on-accent'] || '#ffffff';
+  const host = config.productionUrl.replace(/^https?:\/\//, '');
+  const inner = `
+    <h1 style="margin:0 0 14px;font-size:22px;line-height:1.2;color:${ink};">Sign in to edit your site</h1>
+    <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:${ink};">Tap the button to open your editor. The link works once and expires in 20 minutes.</p>
+    <p style="margin:0 0 22px;"><a href="${escapeHtml(link)}" style="display:inline-block;background:${accent};color:${onAccent};text-decoration:none;font-weight:700;padding:14px 24px;border-radius:999px;">Open my editor</a></p>
+    <p style="margin:0 0 14px;font-size:12px;line-height:1.6;color:${muted};">Button not working? Paste this into your browser:<br><span style="word-break:break-all;color:${accent2};">${escapeHtml(link)}</span></p>
+    <p style="margin:0;font-size:12px;line-height:1.6;color:${muted};">${hasPassword ? 'You can also sign in with your password.' : 'Tired of opening email to sign in? Add a password under Menu → Your sign-in.'} Didn’t ask for this? Ignore it: nothing changes.</p>`;
+  const footer = `<p style="margin:0;font-size:12px;line-height:1.6;color:${muted};">${escapeHtml(name)} · <a href="${escapeHtml(config.productionUrl)}" style="color:${accent2};">${escapeHtml(host)}</a></p>`;
+  return emailShell(inner, { eyebrow: name, preheader: 'Your one-time link to open the editor. It expires in 20 minutes.', footer });
 }
 
-export async function sendLoginEmail({ to, link, siteName: nameOverride }) {
+export async function sendLoginEmail({ to, link, siteName: nameOverride, hasPassword = false }) {
   if (!emailConfigured()) return { ok: false, reason: 'email-unconfigured' };
   const name = nameOverride || siteName();
   const subject = `Your ${name} sign-in link`;
   const text = `Sign in to edit ${name}:\n\n${link}\n\nThis link works once and expires in 20 minutes. If you didn't request it, ignore this email.`;
-  const html = loginEmailHtml({ link, name });
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM, to, subject, html, text }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      console.warn(`[email] resend ${res.status}: ${body.slice(0, 200)}`);
-      return { ok: false, reason: `email-${res.status}` };
-    }
-    const data = await res.json().catch(() => ({}));
-    return { ok: true, id: data.id };
-  } catch (err) {
-    console.warn('[email] resend threw:', err && err.message);
-    return { ok: false, reason: 'email-network' };
-  }
+  return sendEmail({ to: Array.isArray(to) ? to : [to], subject, html: loginEmailHtml({ link, name, hasPassword }), text });
 }

@@ -13,6 +13,29 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
+**2026-10-23 night: password sign-in next to the magic link (engine, LIVE).**
+koH: "lets have it setup so you can do magic link or signin with password and
+lets add this to our hand-clients skill and koordi". Migration
+**055_precisionfix_editor_passwords** applied FIRST (columns `password_hash`,
+`password_set_at`, `sessions_after`, `failed_logins`, `locked_until` on
+`command.precisionfix_editors`; recorded), then the code. Built in
+`clients/_template` and copied here (identical files): `lib/password.mjs`
+(scrypt N=2^16 r=8 p=1, `scrypt$N$r$p$salt$hash`, dummy hash for unknown
+emails, `passwordProblem`: 10+ chars, not the email, not common),
+`auth.mjs` (`POST /api/auth/password`, `POST /api/auth/set-password`; one vague
+401 for every miss; 8 misses lock password sign-in 15 min; a magic link clears
+the lock; changing a password stamps `sessions_after` so every other device is
+signed out; no current password needed within 15 min of signing in, which is
+the forgot-password path), `lib/session.mjs sessionIssuedAt`, `lib/http.mjs
+currentEditor` (refuses cookies older than `sessions_after`), login screen (one
+form: empty password = "Email me a sign-in link", typed = "Sign in" + "Email me
+a link instead", Show toggle), new **Your sign-in** place in the menu for every
+editor, the sign-in email restyled on the shared shell (preview line, footer,
+password nudge). `gen-migration.mjs --passwords` for other live sites.
+`assetVersion` `20261023a`. 169 tests here, 155 in the template. **Other live
+engine sites (Legacy Care…) need `--passwords` applied BEFORE they get this
+engine** (their `currentEditor` would select missing columns).
+
 **2026-10-23 evening: mail FROM precisionfixmobile.com + polished emails.**
 koH: "verified, lets also polish the email delivered". Resend verified the
 domain in the new account; a direct send from bookings@precisionfixmobile.com

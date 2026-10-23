@@ -38,6 +38,7 @@ netlify/functions/lib/http.mjs
 netlify/functions/lib/payments.mjs
 netlify/functions/lib/sanitize.mjs
 netlify/functions/lib/secrets.mjs
+netlify/functions/lib/password.mjs
 netlify/functions/lib/session.mjs
 netlify/functions/lib/site.mjs
 netlify/functions/lib/stripe.mjs
@@ -68,6 +69,7 @@ tests/sitemap.test.mjs
 tests/html.test.mjs
 tests/migration.test.mjs
 tests/sanitize.test.mjs
+tests/auth-password.test.mjs
 tests/session.test.mjs
 tests/payments.test.mjs
 .gitignore

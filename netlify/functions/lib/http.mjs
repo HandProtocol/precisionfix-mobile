@@ -1,7 +1,7 @@
 // Request helpers shared by the API functions.
 
 import { config } from './config.mjs';
-import { COOKIE, parseCookies, verifySession } from './session.mjs';
+import { COOKIE, parseCookies, sessionIssuedAt, verifySession } from './session.mjs';
 import { sb } from './db.mjs';
 
 // netlify.toml [[headers]] rules reach static files only, never a function's
@@ -58,8 +58,13 @@ export async function currentEditor(req) {
   const cookies = parseCookies(req.headers.get('cookie'));
   const editorId = verifySession(cookies[COOKIE]);
   if (!editorId) return null;
-  const rows = await sb(`/{editors}?id=eq.${encodeURIComponent(editorId)}&select=id,email,role,created_at,last_login_at`);
-  return rows && rows[0] ? rows[0] : null;
+  const rows = await sb(`/{editors}?id=eq.${encodeURIComponent(editorId)}&select=id,email,role,created_at,last_login_at,password_set_at,sessions_after`);
+  const row = rows && rows[0];
+  if (!row) return null;
+  // A password change stamps sessions_after: cookies signed before it are out.
+  const { sessions_after: after, ...editor } = row;
+  if (after && sessionIssuedAt(cookies[COOKIE]) < Math.floor(Date.parse(after) / 1000)) return null;
+  return editor;
 }
 
 export async function requireEditor(req) {

@@ -46,6 +46,15 @@ export function signPayload(payload) {
   return crypto.createHmac('sha256', secret()).update(String(payload)).digest('base64url');
 }
 
+// Seconds since the epoch when this cookie was signed (from its expiry), or
+// 0 for a cookie that does not verify. Used to refuse cookies older than a
+// password change, and to call a session "fresh" right after sign-in.
+export function sessionIssuedAt(token, now = Date.now()) {
+  if (!verifySession(token, now)) return 0;
+  const payload = Buffer.from(token.slice(0, token.lastIndexOf('.')), 'base64url').toString('utf8');
+  return Number(payload.split('.')[1]) - SESSION_DAYS * 24 * 3600;
+}
+
 export function newLoginToken() {
   return crypto.randomBytes(32).toString('base64url');
 }

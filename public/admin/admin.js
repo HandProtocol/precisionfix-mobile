@@ -56,7 +56,7 @@
   // #media, #look, #payments, #setup, #editors, #history). go() shows it and
   // pushes history, so the phone's back gesture steps back through places.
   var PHONE = window.matchMedia ? window.matchMedia('(max-width: 900px)') : { matches: false };
-  var TITLES = { home: 'Home', bookings: 'Bookings', content: 'Words and info', media: 'Photos', look: 'Look', payments: 'Payments', setup: 'Setup', editors: 'Who can edit', history: 'Publish history' };
+  var TITLES = { home: 'Home', bookings: 'Bookings', content: 'Words and info', media: 'Photos', look: 'Look', payments: 'Payments', setup: 'Setup', account: 'Your sign-in', editors: 'Who can edit', history: 'Publish history' };
   function showLogin() {
     $('#app').dataset.state = 'login';
     $('#login').hidden = false; $('#shell').hidden = true;
@@ -99,6 +99,7 @@
     document.title = (sec ? sec.label : (TITLES[name] || 'Editor')) + ' · ' + ((state.site && state.site.name) || $('[data-site-name]').textContent);
     if (name === 'content') focusSection(r.sec);
     if (name === 'editors') loadEditors();
+    if (name === 'account') renderAccount();
     if (name === 'history') loadHistory();
     if (name === 'bookings') loadBookings();
     if (name === 'payments') loadPayments();
@@ -176,17 +177,75 @@
   function setBadge(name, n) { $$('[data-badge="' + name + '"]').forEach(function (p) { p.textContent = n ? String(n) : ''; }); }
 
   // ---------------------------------------------------------------- auth --
-  $('#loginform').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    var msg = $('#loginmsg'), btn = $('button', e.target), email = e.target.email.value.trim();
-    btn.disabled = true; msg.className = 'login__msg'; msg.textContent = 'Sending…';
+  // One form, two ways in: a password when typed, otherwise an email link.
+  // The main button says which one will happen.
+  function loginMode() {
+    var typed = Boolean($('#loginform').password.value);
+    $('#loginbtn').textContent = typed ? 'Sign in' : 'Email me a sign-in link';
+    $('#loginlink').hidden = !typed;
+  }
+  async function sendLink() {
+    var f = $('#loginform'), msg = $('#loginmsg'), email = f.email.value.trim();
+    if (!f.email.checkValidity()) { f.email.reportValidity(); return; }
+    msg.className = 'login__msg'; msg.textContent = 'Sending…';
     try {
       var r = await api('POST', '/api/auth/request', { email: email });
       msg.className = 'login__msg ok';
       msg.textContent = r.sent === false ? 'Email isn’t set up on this site yet — ask HAND to add the link from the logs.' : 'Check your inbox for a sign-in link. It works once and expires in 20 minutes.';
     } catch (err) { msg.className = 'login__msg bad'; msg.textContent = err.message; }
+  }
+  $('#loginform').password.addEventListener('input', loginMode);
+  $('#loginlink').addEventListener('click', async function () { this.disabled = true; await sendLink(); this.disabled = false; });
+  $('#loginform').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var f = e.target, msg = $('#loginmsg'), btn = $('#loginbtn');
+    btn.disabled = true;
+    if (!f.password.value) { await sendLink(); btn.disabled = false; return; }
+    msg.className = 'login__msg'; msg.textContent = 'Signing in…';
+    try {
+      var r = await api('POST', '/api/auth/password', { email: f.email.value.trim(), password: f.password.value });
+      f.password.value = ''; loginMode(); msg.textContent = '';
+      state.editor = Object.assign({}, r.editor, { fresh: true });
+      await enter();
+    } catch (err) { msg.className = 'login__msg bad'; msg.textContent = err.message; f.password.select(); }
     btn.disabled = false;
   });
+  // Show / Hide on every password field
+  $$('[data-pwshow]').forEach(function (b) { b.addEventListener('click', function () {
+    var inp = b.parentNode.querySelector('input'), show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password'; b.textContent = show ? 'Hide' : 'Show'; b.setAttribute('aria-pressed', String(show));
+  }); });
+
+  // ------------------------------------------------------------ account --
+  function renderAccount() {
+    var ed = state.editor || {}, f = $('#pwform');
+    f.username.value = ed.email || '';
+    // the current password is asked only when one exists and this sign-in is not fresh
+    var needCurrent = Boolean(ed.hasPassword) && !ed.fresh;
+    $('#pwcurrent').hidden = !needCurrent; f.current.required = needCurrent;
+    $('#pwlabel').textContent = ed.hasPassword ? 'New password' : 'Password';
+    $('#pwsave').textContent = ed.hasPassword ? 'Change password' : 'Save password';
+    $('#acctstatus').textContent = ed.hasPassword
+      ? 'You can sign in with your password' + (ed.passwordSetAt ? ' (set ' + fmtDate(ed.passwordSetAt) + ')' : '') + ' or an email link.'
+      : 'You sign in with email links. Add a password to sign in without opening your inbox.';
+  }
+  $('#pwform').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var f = e.target, btn = $('#pwsave');
+    btn.disabled = true;
+    try {
+      var r = await api('POST', '/api/auth/set-password', { password: f.password.value, current: f.current.value });
+      state.editor = Object.assign({}, state.editor, r.editor, { passwordSetAt: new Date().toISOString(), fresh: true });
+      f.password.value = ''; f.current.value = '';
+      renderAccount();
+      toast('Password saved. Use it next time you sign in.', 'ok');
+    } catch (err) {
+      if (/current password/i.test(err.message)) { $('#pwcurrent').hidden = false; f.current.required = true; f.current.focus(); }
+      toast(err.message, 'bad');
+    }
+    btn.disabled = false;
+  });
+
   $$('[data-logout]').forEach(function (b) { b.addEventListener('click', async function () {
     try { await api('POST', '/api/auth/logout', {}); } catch (_) {}
     state.editor = null; closeMenu(); showLogin();
@@ -204,9 +263,12 @@
         showLogin(); $('#loginmsg').className = 'login__msg bad'; $('#loginmsg').textContent = err.message; return;
       }
     }
-    if (!state.editor) {
+    if (!state.editor || state.editor.fresh === undefined) {
       try { state.editor = (await api('GET', '/api/auth/me')).editor; } catch (_) { showLogin(); return; }
     }
+    await enter();
+  }
+  async function enter() {
     await loadSite();
     await Promise.all([loadBookingSummary(), loadPayments({ quiet: true })]);
     showShell();

@@ -382,3 +382,9 @@ body.has-preview{overflow:hidden}
 .bk__panel[hidden]{display:none}
 .bk__empty{color:var(--ink-3);padding:.8rem;text-align:center;border:1px dashed var(--line);border-radius:var(--r)}
 @media (max-width:900px){.bk__actions .btn{flex:1 1 auto}.bk__meta{grid-template-columns:1fr}.bk__meta dt{padding-top:.4rem}}
+
+/* password field with a Show toggle (login + Your sign-in) */
+.pw{position:relative;display:block}
+.pw input{padding-right:4.5rem}
+.pw__show{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--ink-2);font:inherit;font-size:.8rem;font-weight:600;padding:.45rem .6rem;border-radius:var(--r);cursor:pointer}
+.pw__show:hover,.pw__show:focus-visible{color:var(--ink);background:var(--bg-3)}

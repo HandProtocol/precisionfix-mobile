@@ -214,7 +214,8 @@ async function addEditor(req, editor) {
     prefer: 'return=representation',
     body: { email, role, invited_by: editor.id },
   });
-  return json(200, { ok: true, editor: rows && rows[0] });
+  const r = rows && rows[0];
+  return json(200, { ok: true, editor: r ? { id: r.id, email: r.email, role: r.role, created_at: r.created_at } : null });
 }
 
 async function removeEditor(id, editor) {

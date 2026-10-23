@@ -92,9 +92,9 @@ test('the admin portal: Home first, every place in the menu, a phone dock, Payme
 
 test('destinations(): places drop out when a site lacks them', () => {
   const bare = destinations({ booking: null, payments: null, themes: null, tasks: [] }).map((d) => d.go);
-  assert.deepEqual(bare, ['home', 'content', 'media', 'editors', 'history']);
+  assert.deepEqual(bare, ['home', 'content', 'media', 'account', 'editors', 'history']);
   const full = destinations({ booking: {}, payments: {}, themes: {}, tasks: [{}] }).map((d) => d.go);
-  assert.deepEqual(full, ['home', 'bookings', 'content', 'media', 'look', 'content/calendar', 'payments', 'setup', 'editors', 'history']);
+  assert.deepEqual(full, ['home', 'bookings', 'content', 'media', 'look', 'content/calendar', 'payments', 'setup', 'account', 'editors', 'history']);
 });
 
 test('checklist: tab actions may point at home / look / payments, and a stripe check ticks itself', () => {

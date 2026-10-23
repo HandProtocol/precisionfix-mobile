@@ -116,6 +116,7 @@ const ICONS = {
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
   out: '<path d="M14.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-3.5"/><path d="M10 16.5 5.5 12 10 7.5M5.5 12H15"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/>',
 };
 export function icon(name) {
   return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -135,6 +136,7 @@ export function destinations({ booking = BOOKING, payments = PAYMENTS, themes = 
     { group: 'Business', go: 'content/calendar', icon: 'hours', label: 'Hours and days off', sub: 'When people can ask for a time', when: Boolean(booking) },
     { group: 'Business', go: 'payments', icon: 'payments', label: 'Payments', sub: 'Connect Stripe, see if it is live', badge: 'paycount', when: Boolean(payments) },
     { group: 'Account', go: 'setup', icon: 'setup', label: 'Setup', sub: 'What is left to make the site fully yours', badge: 'setupcount', when: tasks.length > 0 },
+    { group: 'Account', go: 'account', icon: 'key', label: 'Your sign-in', sub: 'Set a password, or keep using email links' },
     { group: 'Account', go: 'editors', icon: 'editors', label: 'Who can edit', sub: 'Add a helper or another owner', owner: true },
     { group: 'Account', go: 'history', icon: 'history', label: 'Publish history', sub: 'Undo: restore an earlier version' },
   ];
@@ -256,10 +258,12 @@ ${fontLinks()}
     <div class="login__card">
       ${brand()}
       <h1>Edit your site</h1>
-      <p class="muted">Enter the email that can edit this site and we’ll send you a one-time sign-in link. No password to remember.</p>
+      <p class="muted">Sign in with your password, or leave it empty and we’ll email you a one-time link.</p>
       <form id="loginform" class="stack">
-        <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" required placeholder="you@example.com"></label>
-        <button class="btn btn--primary" type="submit">Email me a sign-in link</button>
+        <label class="field"><span>Email</span><input type="email" name="email" autocomplete="username" required placeholder="you@example.com"></label>
+        <label class="field"><span>Password <small>only if you set one</small></span><span class="pw"><input type="password" name="password" autocomplete="current-password" maxlength="200"><button class="pw__show" type="button" data-pwshow aria-pressed="false">Show</button></span></label>
+        <button class="btn btn--primary" type="submit" id="loginbtn">Email me a sign-in link</button>
+        <button class="btn btn--ghost" type="button" id="loginlink" hidden>Email me a link instead</button>
       </form>
       <p class="login__msg" id="loginmsg" role="status" aria-live="polite"></p>
       <p class="tiny muted"><a href="/">← Back to the site</a></p>
@@ -348,6 +352,20 @@ ${
             <button class="btn btn--primary btn--sm" type="submit">Add</button>
           </form>
           <ul class="list" id="editorlist"></ul>
+        </div>
+      </section>
+
+      <!-- Your sign-in: every editor, owner or not -->
+      <section class="panel panel--single" id="panel-account" hidden>
+        <div class="content narrow">
+          <header class="panel__head"><div><h2>Your sign-in</h2><p class="muted" id="acctstatus">Email links always work. A password is optional.</p></div></header>
+          <form id="pwform" class="stack">
+            <input type="email" name="username" autocomplete="username" hidden>
+            <label class="field" id="pwcurrent" hidden><span>Current password</span><input type="password" name="current" autocomplete="current-password" maxlength="200"></label>
+            <label class="field"><span id="pwlabel">Password</span><span class="pw"><input type="password" name="password" autocomplete="new-password" minlength="10" maxlength="200" required><button class="pw__show" type="button" data-pwshow aria-pressed="false">Show</button></span><small class="help">At least 10 characters. A short sentence you will remember works well.</small></label>
+            <div><button class="btn btn--primary" type="submit" id="pwsave">Save password</button></div>
+          </form>
+          <p class="tiny muted">Saving a password signs you out on your other phones and computers. Forgot it? Sign out, then sign in with an email link and set a new one here.</p>
         </div>
       </section>
 
