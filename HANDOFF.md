@@ -13,6 +13,38 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
+**2026-10-23 late: ask before booking (customer accounts + conversations, LIVE, PrecisionFix only).**
+koH: "we need a ask questions button or conversation between email, where the
+user can login and chat with the technician before booking"; chose customer
+accounts, Alex answers in the editor AND from Gmail, messages + email alerts
+(not live chat). Migration **056_precisionfix_questions** applied FIRST
+(`precisionfix_customers`, `_customer_tokens`, `_threads`, `_messages`;
+recorded), then mirror commit `3b934f7`, `assetVersion` `20261023c`.
+- Customer: **/account/** (`account.mjs`, `lib/account-page.mjs`,
+  `public/account/*`, strict CSP, EN/ES by `pf-lang`). "Ask a question"
+  button in the #book contact block. Asking with a NEW email makes an
+  unverified account and signs in; a KNOWN email is never signed in (thread
+  filed there, a 7-day welcome link emailed; unverified accounts get every
+  session signed out first). Email link or password (same rules as editors;
+  password only after the email is verified by a link). Customer cookie
+  `precisionfix_customer`, signed under its own scope (`lib/session.mjs`
+  `scope`), so it can never pass as an editor's. Page polls every 15 s.
+- Owner: **/admin/ → Questions** (`lib/questions-admin.mjs`), badge
+  `questioncount`, Home card, polls every 20 s, Mark done / Reopen. Each
+  message emails the other side (`lib/questions-email.mjs`).
+- Reply by email: built (`inbound.mjs` at `/api/inbound/resend`, Svix-signed
+  `email.received`, signed reply addresses `q.<thread>.<o|c>.<sig>@domain`,
+  sender must be that side's address, quoted mail stripped) but **OFF until**
+  Resend receiving is on: koH to turn on Receiving for precisionfixmobile.com
+  and send the MX + a FULL-ACCESS key; then add the MX in Netlify DNS, create
+  the webhook (gives `whsec_`), set env `RESEND_INBOUND_KEY` +
+  `RESEND_WEBHOOK_SECRET`, set `questions.inboundDomain` in site.config.mjs.
+  Until then Alex's Gmail Reply goes straight to the customer (Reply-To).
+- Same evening: login is email + password + "Or send magic link" drop-down
+  (koH's layout; template too). Resend key swapped to the new send-only key
+  koH pasted (env `RESEND_API_KEY`); delete the old key in Resend.
+- NOT in clients/_template yet (the template lacks the deposit work too).
+
 **2026-10-23 night: password sign-in next to the magic link (engine, LIVE).**
 koH: "lets have it setup so you can do magic link or signin with password and
 lets add this to our hand-clients skill and koordi". Migration
