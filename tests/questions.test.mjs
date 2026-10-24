@@ -85,7 +85,11 @@ test('ask with a new email: account, signed in, thread, owner alerted, welcome l
     assert.equal(db[T.messages][0].author, 'customer');
     const owner = mails.find((m) => m.to.includes('owner@shop.test'));
     assert.match(owner.subject, /New question from Ana/);
-    assert.equal(owner.reply_to, 'ana@example.com', 'no inbound domain: Gmail Reply goes to the customer');
+    if (QUESTIONS.inboundDomain) {
+      assert.deepEqual(Q.parseReplyAddress(owner.reply_to, QUESTIONS.inboundDomain), { threadId: db[T.threads][0].id, role: 'o' }, 'Gmail Reply comes back into the thread');
+    } else {
+      assert.equal(owner.reply_to, 'ana@example.com', 'no inbound domain: Gmail Reply goes to the customer');
+    }
     const welcome = mails.find((m) => m.to.includes('ana@example.com'));
     assert.match(welcome.html, /\/account\/\?t=[A-Za-z0-9_-]{43}#t\//);
 

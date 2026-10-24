@@ -80,7 +80,7 @@ export default {
   // Ask before booking (lib/questions.mjs): a customer account at /account/
   // holds their conversations with Alex; he answers in /admin/ → Questions
   // or by replying to the alert in Gmail once inboundDomain receives mail.
-  questions: { inboundDomain: '', langKey: 'pf-lang' },
+  questions: { inboundDomain: 'precisionfixmobile.com', langKey: 'pf-lang' },
 
   madeBy: { label: 'Made by HAND', href: 'https://handprotocol.org' },
 };
