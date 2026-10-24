@@ -28,7 +28,7 @@ import {
   WELCOME_TTL_DAYS, cleanEmail, clearCustomerCookie, createCustomer, currentCustomer, customerCookie, customerIssuedAt,
   findCustomer, linksSentSince, mintLink, publicCustomer, spendLink, validEmail,
 } from './lib/customers.mjs';
-import { BODY_MAX, CAR_MAX, cleanBody, isUuid, markRead, messagesOf, postMessage, startThread, threadById, threadsOf, tooManyMessages, tooManyNewFromIp } from './lib/questions.mjs';
+import { BODY_MAX, CAR_MAX, cleanBody, isUuid, markRead, messagesOf, postMessage, replyAddress, startThread, threadById, threadsOf, tooManyMessages, tooManyNewFromIp } from './lib/questions.mjs';
 import { customerLinkEmail, customerWelcomeEmail } from './lib/questions-email.mjs';
 
 const NAME_MAX = 80;
@@ -78,7 +78,9 @@ async function ask(req) {
   const { thread } = await startThread({ customer: who, question, car: body.car, ip });
   // The welcome link verifies the email; for a known email it is the only way in.
   const link = await mintLink(customer, { origin: originOf(req), ttlMin: WELCOME_TTL_DAYS * 24 * 60, ip, hash: `t/${thread.id}` });
-  const sent = await sendEmail({ to: [email], ...customerWelcomeEmail({ customer: who, thread, link, text: question }) });
+  // a reply to the welcome joins the conversation too, once inbound is on
+  const inbound = replyAddress(thread.id, 'c');
+  const sent = await sendEmail({ to: [email], ...customerWelcomeEmail({ customer: who, thread, link, text: question, byEmail: Boolean(inbound) }), ...(inbound ? { reply_to: inbound } : {}) });
   if (!sent.ok) console.warn(`[account] welcome mail failed: ${sent.reason}`);
   if (known) return json(200, { ok: true, signedIn: false, emailed: true });
   return json(200, { ok: true, signedIn: true, customer: publicCustomer(customer), thread: threadView(thread) }, { 'Set-Cookie': customerCookie(customer.id) });

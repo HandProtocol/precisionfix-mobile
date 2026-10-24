@@ -102,13 +102,13 @@ export function customerReplyEmail({ customer, thread, text, url, byEmail }) {
 
 // To the customer, right after their first question: the link that signs
 // them in (and proves the email is theirs).
-export function customerWelcomeEmail({ customer, thread, link: href, text }) {
+export function customerWelcomeEmail({ customer, thread, link: href, text, byEmail }) {
   const s = t(customer.lang), n = siteName();
-  const inner = `${h1(s.welcome_title)}${para(s.welcome_body(customer.name, n))}${quote(text)}${button(href, s.welcome_btn)}${tiny(`${e(s.welcome_tiny)}<br>${e(s.paste)}<br><span style="word-break:break-all;">${e(href)}</span>`)}`;
+  const inner = `${h1(s.welcome_title)}${para(s.welcome_body(customer.name, n))}${quote(text)}${button(href, s.welcome_btn)}${tiny(`${e(s.welcome_tiny)}${byEmail ? `<br>${e(s.by_email)}` : ''}<br>${e(s.paste)}<br><span style="word-break:break-all;">${e(href)}</span>`)}`;
   return {
     subject: s.welcome_subject(n),
     html: emailShell(inner, { preheader: s.welcome_body(customer.name, n), footer: footer() }),
-    text: textOf(s.welcome_body(customer.name, n), `"${thread.subject}"`, `${s.welcome_btn}: ${href}`, s.welcome_tiny),
+    text: textOf(s.welcome_body(customer.name, n), `"${thread.subject}"`, `${s.welcome_btn}: ${href}`, s.welcome_tiny, byEmail ? s.by_email : ''),
   };
 }
 

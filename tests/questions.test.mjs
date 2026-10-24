@@ -97,6 +97,7 @@ test('ask with a new email: account, signed in, thread, owner alerted, welcome l
     }
     const welcome = mails.find((m) => m.to.includes('ana@example.com'));
     assert.match(welcome.html, /\/account\/\?t=[A-Za-z0-9_-]{43}#t\//);
+    if (QUESTIONS.inboundDomain) assert.equal(Q.parseReplyAddress(welcome.reply_to, QUESTIONS.inboundDomain).role, 'c', 'a reply to the welcome joins the thread');
 
     const me = await call('/api/account/me', { cookie: r.cookie });
     assert.equal(me.status, 200);
