@@ -13,6 +13,36 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
+**2026-10-23 night: reply by email LIVE; bookings own an account; the form goes back and keeps its typing.**
+- Reply by email is ON: MX `receive.forge.rmta.net` (prio 10) on the apex in
+  the Netlify zone, Resend webhook `7c20db15-…` (`email.received` →
+  /api/inbound/resend), env `RESEND_INBOUND_KEY` (koH's FULL-ACCESS key; ask
+  koH to rotate it, it was pasted in chat) + `RESEND_WEBHOOK_SECRET` (set
+  without scopes: Free plan refuses scoped vars), `questions.inboundDomain:
+  'precisionfixmobile.com'`. Bug fixed before go-live: `.map(parseReplyAddress)`
+  passed the array index as the domain, so no reply could match; now covered
+  by an end-to-end webhook test. The question welcome email also carries the
+  customer's reply address. Proven live with `inbound-test@precisionfixmobile.com`
+  (rows deleted). Both keys koH pasted earlier were send-only (Resend has only
+  Sending and Full access keys).
+- Migration **058_precisionfix_customer_bookings** applied FIRST
+  (`bookings.customer_id` → customers, on delete set null; generator flag
+  `--customer-bookings`). `booking.mjs` create: an email finds or makes an
+  UNVERIFIED customer (`customerForBooking`, lib/customers.mjs), nobody signed
+  in, a known account untouched; a failure never costs the request. Proven
+  live, rows deleted. Bookings made before 058 are not linked (no backfill).
+  For Stripe later: the customer row is where a Stripe customer id goes.
+- Form (mirror `01abeb6`, `ccfe807`, `assetVersion` `20261023d`): a line
+  above "Request this time" says the car comes next; Back on the details step
+  and the what-you-noticed step; the browser/phone back button steps back one
+  view (history entries, spent ones popped quietly); the car / notice typing
+  is kept on the device with the sent request; dim text raised past 4.5:1.
+  Still under 4.5: white on the brand red (#e8311a, 4.3:1), site-wide;
+  `--accent-deep` #c42a15 would pass (5.7:1) if koH wants it.
+- The form abilities are koordi record **0038** (+ five "later" rows in
+  koordi `docs/architecture/parity.md`). Owner-editable forms: the direction,
+  not now (koH).
+
 **2026-10-23 late: ask before booking (customer accounts + conversations, LIVE, PrecisionFix only).**
 koH: "we need a ask questions button or conversation between email, where the
 user can login and chat with the technician before booking"; chose customer
