@@ -13,6 +13,7 @@ const { COOKIE, signSession } = await import('../netlify/functions/lib/session.m
 const { currentEditor } = await import('../netlify/functions/lib/http.mjs');
 const { CUSTOMER_COOKIE } = await import('../netlify/functions/lib/customers.mjs');
 const { default: account } = await import('../netlify/functions/account.mjs');
+const { default: inbound } = await import('../netlify/functions/inbound.mjs');
 const { adminQuestions } = await import('../netlify/functions/lib/questions-admin.mjs');
 const Q = await import('../netlify/functions/lib/questions.mjs');
 const I = await import('../netlify/functions/lib/inbound.mjs');
@@ -22,7 +23,7 @@ const I = await import('../netlify/functions/lib/inbound.mjs');
 const T = config.tables;
 function fakeWorld() {
   const db = { [T.editors]: [{ id: 'ed1', email: 'owner@shop.test', role: 'owner' }], [T.login_tokens]: [], ...(QUESTIONS ? { [T.customers]: [], [T.customer_tokens]: [], [T.threads]: [], [T.messages]: [] } : {}) };
-  const mails = [];
+  const mails = [], received = {};
   let n = 0;
   const match = (r, k, v) => {
     const i = v.indexOf('.'), op = v.slice(0, i), val = decodeURIComponent(v.slice(i + 1));
@@ -36,6 +37,10 @@ function fakeWorld() {
   globalThis.fetch = async (url, init = {}) => {
     const u = new URL(url);
     const body = init.body ? JSON.parse(init.body) : null;
+    if (u.hostname === 'api.resend.com' && u.pathname.startsWith('/emails/receiving/')) {
+      const got = received[decodeURIComponent(u.pathname.split('/').pop())];
+      return { ok: Boolean(got), status: got ? 200 : 404, json: async () => got, text: async () => '' };
+    }
     if (u.hostname === 'api.resend.com') {
       mails.push(body);
       return { ok: true, status: 200, json: async () => ({ id: `mail${mails.length}` }), text: async () => '' };
@@ -56,7 +61,7 @@ function fakeWorld() {
     }
     return { ok: true, status: 200, json: async () => out, text: async () => '' };
   };
-  return { db, mails };
+  return { db, mails, received };
 }
 
 const req = (path, { method = 'GET', body, cookie = '' } = {}) => new Request(`https://shop.test${path}`, {
@@ -211,6 +216,42 @@ test('reply-by-email addresses: signed per thread and side, refused when touched
   assert.equal(Q.parseReplyAddress(addr.replace('.o.', '.c.'), 'in.shop.test'), null, 'side swapped');
   assert.equal(Q.parseReplyAddress(addr, 'other.test'), null, 'wrong domain');
   assert.equal(Q.replyAddress(id, 'o', ''), '', 'no inbound domain, no address');
+});
+
+test('a Gmail reply lands in the conversation; unsigned, wrong-sender and repeat mail do not', { skip: !(QUESTIONS && QUESTIONS.inboundDomain) }, async () => {
+  const realFetch = globalThis.fetch, realSecret = process.env.RESEND_WEBHOOK_SECRET, realKey = process.env.RESEND_INBOUND_KEY;
+  const raw = 'w'.repeat(24);
+  process.env.RESEND_WEBHOOK_SECRET = `whsec_${Buffer.from(raw).toString('base64')}`;
+  process.env.RESEND_INBOUND_KEY = 're_test';
+  try {
+    const { db, mails, received } = fakeWorld();
+    await call('/api/account/ask', { method: 'POST', body: ASK });
+    const thread = db[T.threads][0];
+    const ownerTo = mails.find((m) => m.to.includes('owner@shop.test')).reply_to;
+    const hook = (data, { sign = true } = {}) => {
+      const body = JSON.stringify({ type: 'email.received', data }), id = `msg_${data.email_id}`, ts = String(Math.floor(Date.now() / 1000));
+      const sig = crypto.createHmac('sha256', Buffer.from(raw)).update(`${id}.${ts}.${body}`).digest('base64');
+      return inbound(new Request('https://shop.test/api/inbound/resend', { method: 'POST', body, headers: { 'svix-id': id, 'svix-timestamp': ts, 'svix-signature': sign ? `v1,${sig}` : 'v1,AAAA' } }));
+    };
+    received.e1 = { text: 'Pads are $180, Friday works.\n\nOn Thu, Oct 23, 2026 Ana wrote:\n> How much for pads?' };
+    assert.equal((await hook({ email_id: 'e1', from: 'Owner <OWNER@shop.test>', to: [`PrecisionFix <${ownerTo}>`] }, { sign: false })).status, 401);
+    assert.equal(db[T.messages].length, 1);
+    const res = await hook({ email_id: 'e1', from: 'Owner <OWNER@shop.test>', to: ['someone@else.test', `PrecisionFix <${ownerTo}>`] });
+    assert.deepEqual(await res.json(), { ok: true });
+    const msg = db[T.messages][1];
+    assert.equal(msg.author, 'owner'); assert.equal(msg.via, 'email'); assert.equal(msg.body, 'Pads are $180, Friday works.');
+    assert.equal(thread.customer_unread, true);
+    assert.ok(mails.some((m) => m.to.includes('ana@example.com') && /\$180/.test(m.html)), 'customer emailed the answer');
+    assert.equal((await (await hook({ email_id: 'e1', from: 'owner@shop.test', to: [ownerTo] })).json()).dropped, 'already stored');
+    received.e2 = { text: 'free money' };
+    assert.match((await (await hook({ email_id: 'e2', from: 'mallory@evil.test', to: [ownerTo] })).json()).dropped, /sender not on this side/);
+    assert.equal(db[T.messages].length, 2);
+  } finally {
+    globalThis.fetch = realFetch;
+    process.env.RESEND_WEBHOOK_SECRET = realSecret ?? ''; process.env.RESEND_INBOUND_KEY = realKey ?? '';
+    if (realSecret === undefined) delete process.env.RESEND_WEBHOOK_SECRET;
+    if (realKey === undefined) delete process.env.RESEND_INBOUND_KEY;
+  }
 });
 
 test('inbound: Svix signatures, quoted mail stripped, sender address pulled out', () => {

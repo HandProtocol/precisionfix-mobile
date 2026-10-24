@@ -26,7 +26,7 @@ export default async (req) => {
     const event = JSON.parse(body);
     if (event.type !== 'email.received' || !event.data) return drop('not email.received');
     const d = event.data;
-    const target = [...(d.to || []), ...(d.cc || []), ...(d.received_for || [])].map(parseReplyAddress).find(Boolean);
+    const target = [...(d.to || []), ...(d.cc || []), ...(d.received_for || [])].map((a) => parseReplyAddress(a)).find(Boolean);
     if (!target) return drop('no conversation address');
     const thread = await threadById(target.threadId);
     if (!thread) return drop('no such conversation');
