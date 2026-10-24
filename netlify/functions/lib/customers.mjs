@@ -56,6 +56,24 @@ export function customerIssuedAt(req) {
   return sessionIssuedAt(parseCookies(req.headers.get('cookie'))[CUSTOMER_COOKIE], Date.now(), SCOPE);
 }
 
+// The account a booking request belongs to, by its email: found, or made
+// (unverified) when the email is new. Nobody is signed in and a known account
+// is left exactly as it is: the request proves nothing about the inbox. The
+// account is what payments and "your bookings" hang off later. Null when the
+// request left no email.
+export async function customerForBooking({ email, name = '', phone = '', lang = 'en' }) {
+  const clean = cleanEmail(email);
+  if (!validEmail(clean)) return null;
+  const known = await findCustomer(clean, 'id');
+  if (known) return known.id;
+  try {
+    const made = await createCustomer({ email: clean, name, phone, lang });
+    if (made) return made.id;
+  } catch { /* another request made it first: fall through to the lookup */ }
+  const again = await findCustomer(clean, 'id');
+  return again ? again.id : null;
+}
+
 // The signed-in customer, or null. A password change stamps sessions_after:
 // cookies signed before it are out, like editors.
 export async function currentCustomer(req) {

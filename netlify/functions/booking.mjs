@@ -14,7 +14,8 @@
 // Honeypot (bot-field), same-origin on POST, per-IP rate limit, every value
 // clipped and checked against the pack's field list before it is stored.
 
-import { BOOKING, config as site } from './lib/config.mjs';
+import { BOOKING, QUESTIONS, config as site } from './lib/config.mjs';
+import { customerForBooking } from './lib/customers.mjs';
 import { loadSite } from './lib/content.mjs';
 import { dbConfigured } from './lib/db.mjs';
 import { openDays, settingsFrom, overlapSummary, isDateStr } from './lib/booking.mjs';
@@ -78,12 +79,18 @@ async function create(req, url) {
 
   const { content } = await loadSite();
   const { row, settings } = buildBookingRow({ body, content });
+  // A booking with an email belongs to that customer's account; a failure
+  // here never costs the request.
+  const customerId = QUESTIONS && row.email
+    ? await customerForBooking(row).catch((err) => { console.warn(`[${site.slug} booking] no customer account: ${err && err.message}`); return null; })
+    : null;
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const booking = await createBooking({
     id,
     created_at: createdAt,
     ...row,
+    ...(customerId ? { customer_id: customerId } : {}),
     manage_token_hash: manageHash(id),
     act_token_hash: actHash(id, createdAt),
     act_expires_at: new Date(Date.now() + ACT_DAYS * 86400000).toISOString(),

@@ -97,6 +97,7 @@
   dateInput.required = false; slotInput.required = false;
   cal.hidden = false; times.hidden = false;
   form.classList.add('is-funnel'); rail.hidden = false;
+  $$('[data-booking-back]').forEach(function (b) { b.hidden = false; });
 
   /* ---- the rail and the panel ---- */
   function timeLabel() {
@@ -112,7 +113,7 @@
       var st = i < p ? 'done' : i === p ? 'current' : 'next';
       var inner = [el('span', { class: 'booking__dot', 'aria-hidden': 'true', text: st === 'done' ? '✓' : String(i + 1) }), el('span', { class: 'text' }, [el('span', { class: 'name', text: name }), subs[i] ? el('span', { class: 'sub', text: subs[i] }) : null])];
       var canBack = st === 'done' && i === 0 && state.step === 'details';
-      var li = el('li', { class: 'is-' + st, 'aria-current': st === 'current' ? 'step' : null }, [canBack ? el('button', { type: 'button', 'aria-label': str('change') + ': ' + name, onclick: function () { show('time'); } }, inner) : el('span', { class: 'booking__railitem' }, inner)]);
+      var li = el('li', { class: 'is-' + st, 'aria-current': st === 'current' ? 'step' : null }, [canBack ? el('button', { type: 'button', 'aria-label': str('change') + ': ' + name, onclick: function () { goBack(); } }, inner) : el('span', { class: 'booking__railitem' }, inner)]);
       rail.appendChild(li);
     });
   }
@@ -128,6 +129,27 @@
     }
     lastStep = step;
   }
+
+  /* ---- going back: the Back buttons, the rail's Change, and the browser's
+     (or phone's) back button all step back one view: details → day and time,
+     what they noticed → which car. Each forward step pushes one history entry;
+     one that is no longer needed (the request went, the notice was sent) is
+     popped quietly so Back then leaves the form as usual. ---- */
+  var pushed = { details: false, issues: false }, quietPops = 0;
+  function push(tag) { if (pushed[tag]) return; try { window.history.pushState({ handBooking: tag }, ''); pushed[tag] = true; } catch (_) {} }
+  function drop(tag) { if (!pushed[tag]) return; pushed[tag] = false; quietPops++; try { window.history.back(); } catch (_) { quietPops--; } }
+  function stepBack() {
+    if (state.step === 'details') { pushed.details = false; show('time'); scrollTo($('[data-step=time]')); return true; }
+    if (state.step === 'sent' && issuesStep && !issuesStep.hidden) { pushed.issues = false; issuesStep.hidden = true; if (thanks) thanks.hidden = true; if (carStep) carStep.hidden = false; scrollTo(carStep); return true; }
+    return false;
+  }
+  function goBack() {
+    var tag = state.step === 'details' ? 'details' : 'issues';
+    if (pushed[tag]) { try { window.history.back(); return; } catch (_) {} } // popstate does the step
+    stepBack();
+  }
+  window.addEventListener('popstate', function () { if (quietPops > 0) { quietPops--; return; } stepBack(); });
+  form.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-booking-back]')) goBack(); });
 
   /* ---- month data ---- */
   function monthRange(ym) {
@@ -226,7 +248,7 @@
     selectedSlot = id; selectedLabel = label; slotInput.value = id; renderTimes(); saveDraft();
     var service = $('[name=service]');
     if (service && service.type === 'radio' && !$('[name=service]:checked')) { fail(str('choose_service')); scrollTo($('[data-step=service]')); return; }
-    show('details');
+    show('details'); push('details');
   }
 
   $$('[data-upper]').forEach(function (i) { i.addEventListener('input', function () { i.value = i.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); }); });
@@ -269,11 +291,29 @@
     if (!isFresh(sent, Date.now(), 7 * DAY) || !sent.token) { writeStore(SENT_KEY, null); return false; }
     state.name = sent.name || ''; state.token = sent.token; state.shared = sent.shared || null; state.car = sent.car || '';
     paintSent(sent);
+    restoreCarDraft(sent.draft);
     if (carStep) carStep.hidden = state.shared !== null;
     if (issuesStep) issuesStep.hidden = !(state.shared === 'done' && !sent.issues);
     show('sent'); lastStep = 'sent';
     return true;
   }
+  // what is typed into the car and notice steps rides along with the sent request
+  var CAR_FIELDS = ['vin', 'car_model', 'issues'];
+  function carDraft() {
+    var f = {}; CAR_FIELDS.forEach(function (k) { var i = $('[name=' + k + ']'); f[k] = i ? i.value : ''; });
+    f.noticed = $$('[name=noticed]:checked').map(function (c) { return c.value; });
+    var ack = $('[name=self_report_ack]'); f.ack = !!(ack && ack.checked);
+    return f;
+  }
+  function restoreCarDraft(f) {
+    if (!f) return;
+    CAR_FIELDS.forEach(function (k) { var i = $('[name=' + k + ']'); if (i && f[k] != null) i.value = f[k]; });
+    $$('[name=noticed]').forEach(function (c) { c.checked = (f.noticed || []).indexOf(c.value) !== -1; });
+    var ack = $('[name=self_report_ack]'); if (ack) ack.checked = !!f.ack;
+  }
+  function onCarInput(e) { var n = e.target && e.target.name; if (state.token && (CAR_FIELDS.indexOf(n) !== -1 || n === 'noticed' || n === 'self_report_ack')) updateSent({ draft: carDraft() }); }
+  form.addEventListener('input', onCarInput);
+  form.addEventListener('change', onCarInput);
   function updateSent(patch) { var sent = readStore(SENT_KEY) || {}; Object.keys(patch).forEach(function (k) { sent[k] = patch[k]; }); writeStore(SENT_KEY, sent); }
   form.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-booking-again]');
@@ -319,7 +359,7 @@
         writeStore(DRAFT_KEY, null);
         writeStore(SENT_KEY, state.token ? { token: state.token, name: state.name, when: r.data.when || null, service: r.data.service || '', manage_url: r.data.manage_url || '', shared: null, car: '', issues: false, ts: Date.now() } : null);
         var again = $('[data-booking-again]'); if (again) again.hidden = !state.token;
-        show('sent'); done.focus();
+        show('sent'); drop('details'); done.focus();
       })
       .catch(function (err) { fail(err.message || str('failed')); });
   });
@@ -348,15 +388,15 @@
       share({ action: 'share', vin: vin, car_model: model }, function (data) {
         state.shared = 'done'; state.car = data.vin || data.car_model || vin || model;
         updateSent({ shared: 'done', car: state.car });
-        carStep.hidden = true; if (issuesStep) issuesStep.hidden = false; thank('car_thanks'); renderRail();
+        carStep.hidden = true; if (issuesStep) { issuesStep.hidden = false; push('issues'); } thank('car_thanks'); renderRail();
       });
     }
     if (which === 'issues') {
       var typed = $('[name=issues]').value.trim(), agree = $('[name=self_report_ack]');
       var picked = $$('[name=noticed]:checked').map(function (c) { return c.value; });
-      if (skip || (!typed && !picked.length)) { issuesStep.hidden = true; updateSent({ issues: true }); return; }
+      if (skip || (!typed && !picked.length)) { issuesStep.hidden = true; updateSent({ issues: true }); drop('issues'); return; }
       if (!agree.checked) { shareFail(str('needs_agree')); agree.focus(); return; }
-      share({ action: 'share', issues: typed, noticed: picked, self_report_ack: true }, function () { issuesStep.hidden = true; updateSent({ issues: true }); thank('issues_thanks'); });
+      share({ action: 'share', issues: typed, noticed: picked, self_report_ack: true }, function () { issuesStep.hidden = true; updateSent({ issues: true, draft: null }); drop('issues'); thank('issues_thanks'); });
     }
   });
 

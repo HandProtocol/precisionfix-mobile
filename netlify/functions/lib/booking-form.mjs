@@ -48,6 +48,8 @@ const S = {
   manage: ['Cancel or change the time', 'Cancelar o cambiar la hora'],
   again: ['Request another time', 'Pedir otra hora'],
   choose: ['Choose…', 'Elige…'],
+  back: ['← Back', '← Atrás'],
+  car_next: ['Next, after you send this: which car it is and what you have noticed. Both optional.', 'Después de enviar esto: qué carro es y qué has notado. Las dos cosas son opcionales.'],
 };
 const s = (k) => S[k];
 
@@ -90,6 +92,7 @@ function carSteps() {
     </fieldset>
     <fieldset class="form__group booking__issues" data-step="issues" hidden>
       <legend>${bi('span', en.issues_title, es.issues_title)}</legend>
+      <button class="booking__back" type="button" data-booking-back>${bi('span', S.back[0], S.back[1])}</button>
       ${bi('p', selfReportNotice('en'), selfReportNotice('es'), 'booking__notice')}
       <fieldset class="booking__noticed"><legend>${bi('span', en.symptoms, es.symptoms)}</legend><div class="booking__chips">${SYMPTOMS.map((sy) => `<label class="choice booking__chip"><input type="checkbox" name="noticed" value="${sy.key}">${bi('span', sy.en, sy.es)}</label>`).join('')}</div></fieldset>
       <label class="field">${bi('span', en.issues, es.issues)}<textarea name="issues" rows="5" maxlength="${ISSUES_MAX}" placeholder="${e(en.placeholder)}" data-es-ph="${e(es.placeholder)}"></textarea></label>
@@ -170,6 +173,7 @@ export function bookingBlock({ content, now = new Date(), success, success_es, n
 
   <fieldset class="form__group booking__step" data-step="details" data-view="details">
     <legend><span class="form__step">${num()}</span>${bi('span', s('details')[0], s('details')[1])}</legend>
+    <button class="booking__back" type="button" data-booking-back hidden>${bi('span', s('back')[0], s('back')[1])}</button>
     <div class="form__row">
       <label class="field">${bi('span', s('name')[0], s('name')[1])}<input name="name" type="text" required autocomplete="name" maxlength="${NAME_MAX}"></label>
       <label class="field">${bi('span', s('phone')[0], s('phone')[1])}<input name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="${PHONE_MAX}"></label>
@@ -186,6 +190,7 @@ export function bookingBlock({ content, now = new Date(), success, success_es, n
 
   <div class="form__actions" data-view="details">
     ${pricingBox(BOOKING)}
+    ${bi('p', s('car_next')[0], s('car_next')[1], 'booking__next')}
     <button class="btn btn--primary btn--lg form__submit" type="submit">${bi('span', s('submit')[0], s('submit')[1])}</button>
     ${settings.confirmWithin.en ? bi('p', settings.confirmWithin.en, settings.confirmWithin.es, 'form__note booking__within') : ''}
     ${note ? bi('p', note, note_es, 'form__note') : ''}

@@ -85,3 +85,16 @@
 .booking__chip{padding:.5rem .75rem;font-size:.86rem;font-weight:500;justify-content:flex-start}
 .booking__chip input{width:1rem;height:1rem}
 .booking__again{width:auto}
+
+/* contrast (2026-10-23): helper lines, labels and placeholders were the dim
+   ink-3 and sat near 4.5:1 on the dark panels; they take ink-2. The links on
+   the sent panel take the brighter red. */
+.booking .booking__hint,.booking .booking__hint-sm,.booking .form__note,.booking .field>span,.booking .field>legend>span,.booking .booking__noticed legend{color:var(--ink-2,var(--ink))}
+.booking .field input::placeholder,.booking .field textarea::placeholder{color:var(--ink-2,var(--ink));opacity:.75}
+.booking .form__done a{color:var(--accent-hi,var(--accent))}
+
+/* going back one step, and the line that says the car comes after sending */
+.booking__back{justify-self:start;margin:0 0 .2rem;padding:.35rem 0;border:0;background:none;color:var(--ink-2,var(--ink));font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.booking__back:hover,.booking__back:focus-visible{color:var(--ink)}
+.booking__back[hidden]{display:none}
+.booking__next{margin:0;padding:.65rem .85rem;border:1px dashed var(--line-2,var(--line));border-radius:var(--r,8px);font-size:.9rem;line-height:1.45;color:var(--ink)}

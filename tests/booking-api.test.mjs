@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BOOKING, config, normalizeBooking } from '../netlify/functions/lib/config.mjs';
+import { BOOKING, QUESTIONS, config, normalizeBooking } from '../netlify/functions/lib/config.mjs';
 import { ENGINE_DEFAULTS, SECTION_KEY } from '../netlify/functions/lib/booking.mjs';
 import { bookingBlock, buildBookingRow, citiesFor, intakeFor, servicesFor } from '../netlify/functions/lib/booking-form.mjs';
 import { renderActPage, renderManagePage } from '../netlify/functions/lib/booking-page.mjs';
@@ -42,6 +42,10 @@ test('bookingBlock renders the four steps, fallbacks, intake, location, config j
   assert.match(html, /<form class="form booking" id="booking" method="POST" action="\/api\/booking" data-booking data-tz="America\/Chicago" data-today="2026-09-16" data-last="2026-10-16" data-mode="windows">/);
   for (const step of ['service', 'day', 'time', 'details']) assert.match(html, new RegExp(`data-step="${step}"`));
   assert.match(html, /name="bot-field"/);
+  // one step back from the details (shown by the script) and from what they noticed; the car is said to come next
+  assert.match(html, /data-step="details"[\s\S]*?<button class="booking__back" type="button" data-booking-back hidden><span data-es="← Atrás">← Back<\/span>/);
+  assert.match(html, /data-step="issues"[\s\S]*?data-booking-back>/);
+  assert.ok(html.indexOf('class="booking__next"') !== -1 && html.indexOf('class="booking__next"') < html.indexOf('form__submit'), 'the car-comes-next line sits above the submit');
   assert.match(html, /<input name="date" type="date" required min="2026-09-16" max="2026-10-16">/);
   assert.match(html, /<select name="slot" required><option value="morning" data-es="Mañana \(8:00 AM a 12:00 PM\)">Morning \(8:00 AM to 12:00 PM\)<\/option>/);
   assert.match(html, /name="service" value="i-brakes-i" required><span data-es="a&quot;b">&lt;i&gt;Brakes&lt;\/i&gt;<\/span>/);
@@ -276,7 +280,8 @@ function fakeBackend({ rows = [], mail = null } = {}) {
   const calls = { sb: [], mail: [], events: [] };
   const realFetch = globalThis.fetch;
   // beforePatch: a hook run just before a PATCH lands (to stage a race)
-  const api = { calls, rows, beforePatch: null, restore() { globalThis.fetch = realFetch; for (const k of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY', 'EMAIL_FROM']) delete process.env[k]; } };
+  const customers = [];
+  const api = { calls, rows, customers, beforePatch: null, restore() { globalThis.fetch = realFetch; for (const k of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY', 'EMAIL_FROM']) delete process.env[k]; } };
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     if (u.startsWith('https://api.resend.com/')) {
@@ -292,6 +297,11 @@ function fakeBackend({ rows = [], mail = null } = {}) {
     const table = config.tables;
     if (path.startsWith(`/${table.content}`)) return { ok: true, status: 200, json: async () => [] };
     if (path.startsWith(`/${table.media}`)) return { ok: true, status: 200, json: async () => [] };
+    if (table.customers && path.startsWith(`/${table.customers}`)) {
+      if (init.method === 'POST') { const c = { id: 'c-' + (customers.length + 1), ...JSON.parse(init.body) }; customers.push(c); return { ok: true, status: 201, json: async () => [c] }; }
+      const email = decodeURIComponent((/[?&]email=eq\.([^&]+)/.exec(path) || [])[1] || '');
+      return { ok: true, status: 200, json: async () => customers.filter((c) => c.email === email) };
+    }
     if (path.startsWith(`/${table.bookings}`)) {
       if (init.method === 'POST') { const row = { id: 'b-' + (rows.length + 1), created_at: '2026-09-16T15:00:00Z', updated_at: '2026-09-16T15:00:00Z', ...JSON.parse(init.body) }; rows.push(row); return { ok: true, status: 201, json: async () => [row] }; }
       if (init.method === 'PATCH') {
@@ -362,6 +372,13 @@ test('POST /api/booking stores a request with hashed tokens, emails the owner (o
     assert.match(insert.body.act_token_hash, /^[0-9a-f]{64}$/);
     assert.equal(insert.body.request_ip, '9.9.9.9');
     assert.equal(insert.body.starts_at, insert.body.requested_starts_at);
+    if (QUESTIONS) {
+      // the email becomes an account (unverified, nobody signed in) that the booking belongs to
+      assert.equal(be.customers.length, 1);
+      assert.deepEqual([be.customers[0].email, be.customers[0].name, be.customers[0].email_verified_at], ['booking-test@handprotocol.org', 'Test Booking', undefined]);
+      assert.equal(insert.body.customer_id, be.customers[0].id);
+      assert.equal(res.headers.get('set-cookie'), null, 'a booking signs nobody in');
+    }
     assert.equal(be.calls.mail.length, 2);
     const [owner, customer] = be.calls.mail;
     assert.deepEqual(owner.to, ['owner@handprotocol.org']);
