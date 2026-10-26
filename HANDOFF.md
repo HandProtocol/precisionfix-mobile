@@ -13,6 +13,187 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
+## RESUME HERE (2026-10-26, later): SEO + booking spam rails built on top of invoices; ONE ship, waiting on koH's OK
+
+Everything below is BUILT and TESTED (210/210, `npm test`), **nothing applied,
+deployed or committed.** It ships together with the invoices work (same
+working copy), so the invoices order still rules: **059 first**.
+
+**SEO for Google Search Console + Bing (hand-client-seo, ported by hand: never sync-engine this site).**
+Live audit before: 94/100 (A), launch gate pass (`seo/audits/20261026-150631/`).
+- `lib/blocks.mjs` head + JSON-LD ported from `_template`: canonical / og:url /
+  JSON-LD always on `productionUrl` (precisionfix-mobile.netlify.app answers
+  200 and used to self-canonical), `og:site_name`, a 1200×630 JPEG share image
+  from the Image CDN (`shareImage`, was WEBP), og:image width/height,
+  twitter:title/description/image, `@graph` = WebSite + AutoRepair with `@id`.
+- `seo.bing_verification` field (Content → Search & sharing) → `msvalidate.01` meta.
+- `public/robots.txt` names `https://precisionfixmobile.com/sitemap.xml`
+  (static file kept; the template's robots function was not ported).
+- `sitemap.mjs`: productionUrl + `<lastmod>` = last publish day.
+- `render.mjs`: `/index.html` → 301 `/`; `Referrer-Policy` on the page
+  (netlify.toml [[headers]] never reach function responses).
+- `telHref`/`smsHref` add +1 to bare 10-digit numbers (the act page and
+  `customerSmsHref` build their own links, unchanged).
+- Seo description default rewritten to 158 chars: the old 167-char default
+  was clipped by the field max to "…in your driveway. English". **The LIVE
+  stored copy still ends in "English"**: after deploy, PATCH `seo.description`
+  through the editor API (skill-conventions 3.5) to
+  "Factory-certified Mercedes-Benz mobile mechanic in Austin, TX: dealer-level
+  diagnostics, brakes, batteries and electrical in your driveway. English & Spanish."
+- Setup tab (`site/checklist.mjs`): DOMAIN is now precisionfixmobile.com;
+  Search Console item has **Copy your site address** / **Copy the sitemap
+  address** buttons + Request indexing; new **Bing** item (import from GSC,
+  meta-tag fallback); Stripe item rewritten as test key (`rk_test_`, card 4242)
+  → live key (`rk_live_`).
+- Known audit notes left on purpose: `/account/` warns (no canonical/h1/og)
+  but it is noindex by meta + header, fine; "first large image lazy" is a
+  false positive (hero is the SVG gauge, first photo is the gallery). The
+  netlify.app host still answers 200 (canonical covers it; a host 301 would
+  also bounce webhook POSTs, so not added).
+
+**Booking spam rails + "find my booking"** (koH 2026-10-26: "spam limit with the
+submissions … persistence … how to find their booking if they can't find the email").
+- `lib/booking-guard.mjs` on the shared `command.rate_take` (migration 057,
+  verified in prod 2026-10-26, service_role can execute; keys sha256-hashed;
+  a DB error lets the request through, logged). Existing honeypot,
+  same-origin and 6/IP/hour stay.
+- One upcoming request per person: same email OR phone (last 10 digits) with a
+  requested/confirmed visit not yet over → `{ ok, already: true, emailed }`,
+  nothing stored, the booking's link re-mailed to the address ON the booking
+  (never the one typed; the answer names no time/service). The form offers
+  **"This is another car or visit: send it anyway"** (`another=1`).
+- Caps: 3 requests per email/phone a day, 40 a day for the whole site, link
+  mails once per 10 min and 3 a day per booking, find 5/IP/hour + 2/email/hour.
+- `POST /api/booking/manage?t= {action:'link'}` = **Email me the link again**
+  on the sent screen (no email on the request → "keep this page" words).
+- `POST /api/booking/find {email}` = **Already sent a request? Find your
+  booking** under the calendar: same answer whether or not anything matched.
+- New email kind `link` (EN/ES, `customerLinkEmail`).
+- Form memory: the sent request now stays until its day has passed (90 days
+  max; was 7 days). Main status line got `data-booking-status` (the new find
+  status shared the `.form__status` class and was being picked up first).
+- Walked at 390 wide on the local harness: find, send, link again, reload
+  keeps it, already-notice, send anyway; no JS errors (404s = harness images).
+- `assetVersion` `20261026a`. `booking-guard.mjs` added to ENGINE_FILES.
+
+**Ship checklist (operator, in order; each only after the one before works):**
+1. [ ] koH says go.
+2. [ ] Apply `059_precisionfix_invoices.sql` + record it (see the invoices block below).
+3. [ ] rsync → `~/Documents/precisionfix-site`, commit, push main as cryptokoh; check the deploy is `ready`.
+4. [ ] `ship-copy.sql` (small print).
+5. [ ] PATCH `seo.description` (above) through the editor API; log out.
+6. [ ] Live checks: `/robots.txt` has the Sitemap line; `/sitemap.xml` has `<lastmod>` on precisionfixmobile.com;
+       `/index.html` 301s; view-source on precisionfix-mobile.netlify.app shows the canonical on precisionfixmobile.com;
+       og:image is `fm=jpg&w=1200&h=630` (open it and look at the crop); a booking from a `*@handprotocol.org`
+       address, then the same address again → "already" + one link mail; Find my booking → mail; delete the test rows.
+7. [ ] `node .claude/skills/hand-client-seo/scripts/seo.mjs audit precisionfix --compare --psi --lab --gate`.
+8. [ ] Invoice live checks (invoices block below).
+9. [ ] Owner (Setup tab): Search Console (paste code, submit sitemap) → Bing (import from GSC) → Business Profile.
+10. [ ] Stripe, when Alex has the key: `rk_test_` first (deposit + invoice paid with 4242), then `rk_live_`; never `pk_`.
+
+## Invoices (2026-10-26): built, ships with the block above
+
+
+**State:** invoicing (the whole balance payable through Stripe) plus "paid
+another way" bookkeeping are BUILT and TESTED (203/203, `npm test`) and
+browser-walked at 1280 and 390 wide. **Nothing applied, deployed or
+committed.** The last question to koH was "apply 059 and deploy?": wait for a
+yes.
+
+**Ship, in this order (each step only after the one before succeeds):**
+1. Apply `command/supabase/migrations/059_precisionfix_invoices.sql` to prod
+   and record it in `supabase_migrations.schema_migrations` (version `059`,
+   name `precisionfix_invoices`). It MUST go first: `booking-db.mjs` now
+   selects `deposit_reminder_sent_at`, so code without the column breaks every
+   bookings query. The file is generated: `node scripts/gen-migration.mjs
+   --invoices --out=../../command/supabase/migrations/059_precisionfix_invoices.sql`.
+   It is dry-run clean (twice, idempotent) in the podman Supabase image.
+2. Deploy: the rsync recipe under "Where things are" → commit in
+   `~/Documents/precisionfix-site` → push main as cryptokoh (auto-deploys on
+   Alex's Netlify). `assetVersion` is already `20261025a`.
+3. Run the small-print update: `ship-copy.sql` in the monorepo's
+   `docs/closed/precisionfix-invoices-kit/` (local only). The stored
+   `booking.note` says "Deposits and online payment are coming soon"; it is
+   hidden today by `noteFor` (site/page.mjs) and would SHOW once Stripe is on.
+   The update only matches that exact old sentence.
+4. Live checks: /admin/ → Invoices loads; a booking shows "Make invoice"; an
+   invoice to a `*@handprotocol.org` address sends; the /invoice link opens;
+   then void it and delete the test rows. With no Stripe key the page has no
+   Pay button (by design), so Pay itself cannot be proven live yet.
+
+**What exists (all in this folder, all listed in ENGINE_FILES):**
+- `site.config.mjs` `invoices: { prefix: 'PF', dueDays: 0, reminders: [3, 7,
+  14], taxRate: 0 }`. Config normalizer `normalizeInvoices` (lib/config.mjs)
+  needs `payments`; tax in basis points (825 = 8.25%).
+- `lib/invoice-core.mjs`: pure money math (integer cents), lines
+  (labor/part/fee/discount; parts taxable by default, discounts never),
+  `totalsOf`, `creditFor` (paid + credited deposit), `draftFromBooking`
+  (labor at the hourly rate, the gas surcharge, car + VIN in the note, labels
+  in the customer's language via `LINE_LABELS`), dates in the site's zone
+  (`todayIn`, `dayOf`, `dueDateFrom`, `paidAtFrom`), signed link tokens
+  (`payToken`/`payHash`, only the hash is stored), `MANUAL_METHODS` +
+  `METHOD_LABELS`, the customer's EN/ES words (`invoiceWords`).
+- `lib/invoice-db.mjs` (PostgREST), `lib/invoices.mjs` (create, edit, send,
+  checkout, markPaid, void, refund, views, reminders),
+  `lib/invoices-admin.mjs` (/api/admin/invoices routes), `lib/invoice-email.mjs`
+  (sent, reminder, receipt, refunded, owner paid, owner overdue),
+  `lib/invoice-page.mjs` + `invoice.mjs` (customer page `/invoice?t=` and
+  `/invoice/pay`), `lib/invoice-csv.mjs` (bookkeeping download).
+- Stripe: same webhook as the deposit. `booking-deposit.mjs`
+  `handleStripeEvent` hands any session whose `metadata.invoice_id` is set to
+  `handleInvoiceSession`. No new Stripe events or permissions. Back from
+  Stripe, the page also asks Stripe itself (`syncInvoiceSession`).
+- Safety rules worth knowing: the deposit credit is re-read at send and at
+  pay (a refunded deposit stops counting); editing a sent invoice expires its
+  old Checkout page; a $0 balance is marked paid at once (method `deposit`);
+  only drafts can be deleted, sent ones are voided; refunds only for Stripe
+  payments; status `overdue` is worked out on read, never stored.
+- Hourly job (`booking-reminders.mjs`) also runs invoice reminders (9 AM to
+  6 PM site time, one stage per run, the last stage also emails the owner)
+  and ONE customer deposit reminder halfway through the hold (8 AM to 9 PM).
+- Admin (`public/admin/admin.js` invoices section, `admin-page.mjs`
+  `invoicesPanel`, CSS at the end of admin.css): Invoices in the Today group
+  (badge = overdue), Home card with the owed total, "Make invoice" + invoice
+  chips on booking cards. Editor actions: Send / Save draft / Delete draft;
+  open: Save changes / Send again / **Paid another way** / Void; Stripe-paid:
+  Refund; See what they see / Copy link / Text the link.
+- **Paid another way** (for the books): method picker with no default (Cash,
+  Cash App, Zelle, Venmo, Card in person, Check, PayPal, Apple Cash, Bank
+  transfer, Other; an unknown method is refused), a reference field
+  (`paid_reference`: check number, $Cashtag, transaction id; for the owner
+  only, never on the customer's receipt), the day the money came in
+  (back-dating up to 365 days, never ahead), optional receipt email.
+- **Download for bookkeeping (CSV)** under the invoice list
+  (`GET /api/admin/invoices/export.csv`, signed in only): one row per sent
+  invoice (no drafts) with issued, due, paid on, paid how, reference, labor /
+  parts / fees / discounts split out, subtotal, tax, deposit credit, total,
+  amount received, Stripe payment id, refunded on, void reason. Text cells
+  that start with = + - @ get a leading quote (spreadsheet formula
+  injection). Capped at 1,000 invoices (PostgREST's row cap); add paging if
+  Alex ever passes that.
+
+**Decisions waiting on others:**
+- Alex: sales tax. `taxRate: 0` now. Texas likely taxes parts and not repair
+  labor; Austin is 8.25% (825). Changing it is one line in site.config.mjs,
+  and the editor has a per-invoice tax % already.
+- Alex: connect Stripe with an `sk_live_` or `rk_live_` key (/admin/ →
+  Payments). The `pk_live_` key koH pasted on 2026-10-25 is publishable and
+  cannot take payments; it was not stored anywhere. Until a key is set,
+  invoices go out without a Pay button and are marked paid by hand.
+- koH: the real-Stripe test (item 1) was deliberately left out.
+- koH: lifting deposit / questions / accounts / car / customers / invoices
+  into `clients/_template`. NOT done: about 36 shared engine files have
+  drifted both ways (the template has review, page, robots, render, seo that
+  this site lacks), the template changed on 2026-10-23 (password sign-in),
+  and Legacy Care runs on it. Needs its own merge pass with Legacy Care's
+  tests run after.
+
+**Testing kit (local only):** the monorepo's
+`docs/closed/precisionfix-invoices-kit/` has a local harness (real function
+handlers + in-memory Supabase / fake Stripe / fake Resend, `/__login`), the
+two Playwright walks, the podman stub for dry-running 059, and `sbq.sh` for
+prod SQL. Its README says how to run each.
+
 **2026-10-23 night: reply by email LIVE; bookings own an account; the form goes back and keeps its typing.**
 - Reply by email is ON: MX `receive.forge.rmta.net` (prio 10) on the apex in
   the Netlify zone, Resend webhook `7c20db15-…` (`email.received` →
@@ -406,9 +587,12 @@ deleted).
    `site/booking.mjs`, `site/schema.mjs`, `site/page.mjs`,
    `public/assets/site.css`, `public/assets/themes/*.css`,
    `public/assets/site.js`, `public/img/photos/*`, `tests/page.test.mjs`.
-   Everything else is engine: fix in `clients/_template`, then
-   `sync-engine.mjs precisionfix`.
-3. `npm test` (92 tests, no DB). Preview a theme:
+   Everything else is engine. **Since 2026-10-14 this site's engine is AHEAD
+   of `clients/_template`** (deposit, questions, accounts, car, customers,
+   invoices live only here). **Do NOT run `sync-engine.mjs precisionfix`**: it
+   would overwrite all of that with the older template. Fix engine code here
+   until the template merge pass is done (see RESUME HERE at the top).
+3. `npm test` (203 tests, no DB). Preview a theme:
    `node scripts/render-static.mjs --theme=sunset` → `dist-preview/sunset/`.
    Screenshots: Playwright from gstack with `--no-sandbox`; add `.in` to every
    `.reveal` before a full-page capture or sections look empty.

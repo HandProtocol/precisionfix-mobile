@@ -6,6 +6,8 @@
 //         at 8:00 and nobody wants an email at 5:30.
 // The owner picks both / a day before only / none in the calendar section.
 // Nothing to Telegram, nothing to the owner: the owner has the calendar.
+// The same run also chases money: the deposit (owner nudge after the hold,
+// one customer reminder halfway) and open invoices past due (lib/invoices.mjs).
 
 import { BOOKING, config as site } from './lib/config.mjs';
 import { dbConfigured } from './lib/db.mjs';
@@ -15,7 +17,8 @@ import { intakeFor } from './lib/booking-form.mjs';
 import { dueReminders, updateBooking } from './lib/booking-db.mjs';
 import { sendBookingEmail } from './lib/booking-email.mjs';
 import { manageToken } from './lib/booking-token.mjs';
-import { nudgeOverdueDeposits } from './lib/booking-deposit.mjs';
+import { nudgeOverdueDeposits, remindDueDeposits } from './lib/booking-deposit.mjs';
+import { runInvoiceReminders } from './lib/invoices.mjs';
 import { loadStripeKeys } from './lib/stripe.mjs';
 
 export const REMINDER_HOURS = 24;
@@ -79,6 +82,22 @@ export default async () => {
     r.deposit = d;
   } catch (err) {
     console.error(`[${site.slug} deposit] nudges:`, err && (err.stack || err.message));
+  }
+  // Halfway through the hold, the customer gets one Pay reminder of their own.
+  try {
+    const c = await remindDueDeposits();
+    if (c.due) console.log(`[${site.slug} deposit] customer reminders: ${c.sent}/${c.due} sent`);
+    r.depositReminders = c;
+  } catch (err) {
+    console.error(`[${site.slug} deposit] customer reminders:`, err && (err.stack || err.message));
+  }
+  // Open invoices past due: 3, 7, 14 days (config.invoices.reminders), daytime only.
+  try {
+    const i = await runInvoiceReminders();
+    if (i.due) console.log(`[${site.slug} invoice] reminders: ${i.sent}/${i.due} sent`);
+    r.invoices = i;
+  } catch (err) {
+    console.error(`[${site.slug} invoice] reminders:`, err && (err.stack || err.message));
   }
   return new Response(JSON.stringify(r), { status: 200, headers: { 'Content-Type': 'application/json' } });
 };

@@ -183,13 +183,13 @@ test('email polish: inbox preview line, shop footer with the phone, owner rows o
   const settings = { ...SETTINGS, shop: { phone: '(512) 571-3425', sms: true } };
   const c = customerReceivedEmail({ booking: B, manageUrl: 'https://s/m', settings });
   assert.match(c.html, /display:none[^>]*>Thanks, Ana\./);
-  assert.match(c.html, /href="tel:5125713425"/);
+  assert.match(c.html, /href="tel:\+15125713425"/);
   assert.match(c.html, new RegExp(config.productionUrl.replace(/[.\/]/g, '\\$&')));
   const o = ownerNewRequestEmail({ booking: B, links: { confirm: 'c', decline: 'd', open: 'o' }, settings });
-  assert.match(o.html, /href="sms:5125550101"/);
+  assert.match(o.html, /href="sms:\+15125550101"/);
   assert.match(o.html, /href="mailto:Ana@Example.com"/);
   assert.match(o.html, /google\.com\/maps\/search\/\?api=1&amp;query=1%20Main%3B%20St%2C%20Kyle/);
-  assert.doesNotMatch(o.html, /tel:5125713425/, 'the owner does not get the shop footer');
+  assert.doesNotMatch(o.html, /tel:\+?5125713425/, 'the owner does not get the shop footer');
   assert.match(o.text, /Who: Ana/, 'the plain-text part keeps its rows');
 });
 

@@ -11,6 +11,7 @@
 //   node scripts/gen-migration.mjs --passwords     → only the password columns on editors, for a site live before passwords
 //   node scripts/gen-migration.mjs --questions     → only the customer + conversation tables (config.questions)
 //   node scripts/gen-migration.mjs --customer-bookings → only bookings.customer_id (questions + booking calendar)
+//   node scripts/gen-migration.mjs --invoices      → only the invoices table (+ the deposit reminder column), config.invoices
 //   node scripts/gen-migration.mjs --bookings      → only the bookings table, for a
 //                                                    site that was live before it had a calendar
 //                                                    (new numbered migration; never edit an applied one)
@@ -114,7 +115,8 @@ export function depositColumnsSql() {
   add column if not exists deposit_paid_at timestamptz,
   add column if not exists deposit_refund_id text,
   add column if not exists deposit_refunded_at timestamptz,
-  add column if not exists deposit_nudge_sent_at timestamptz;
+  add column if not exists deposit_nudge_sent_at timestamptz,
+  add column if not exists deposit_reminder_sent_at timestamptz;
 
 create index if not exists ${T.bookings}_deposit_session_idx
   on ${S}.${T.bookings} (deposit_session_id);
@@ -290,6 +292,91 @@ ${BOOKING ? customerBookingsSql() : ''}`;
 // "your bookings" can hang off one person later. Rides with the questions
 // tables (which the bookings table precedes); --customer-bookings for a live
 // site that already has both.
+// Invoices (config.invoices, lib/invoices.mjs): the owner bills a job, the
+// customer pays the balance through Stripe Checkout from a signed link.
+//   status       draft | open | paid | void | refunded   (overdue = open past due_date, worked out on read)
+//   items        [{ kind: labor|part|fee|discount, label, qty, unit, taxable }]   unit in cents, qty up to 2 decimals
+//   subtotal / tax / credit / total / balance   cents; credit = the booking's paid deposit; balance = what is owed
+//   pay_token_hash    the customer's link (lib/invoice-core.mjs payToken), hashed like the booking links
+//   paid_via     stripe | manual;   paid_method   card | cash | zelle | check | card_in_person | deposit | other
+//   reminders_sent    { "3": iso, "7": iso, … } days past due already reminded (booking-reminders.mjs)
+export function invoicesTableSql() {
+  const T = config.tables;
+  const S = config.supabase.schema;
+  const inv = config.invoices;
+  return `-- ${T.invoices}: invoices the owner sends; the customer pays the balance through Stripe.
+create sequence if not exists ${S}.${T.invoices}_number_seq start ${inv.start};
+
+create table if not exists ${S}.${T.invoices} (
+  id uuid primary key default gen_random_uuid(),
+  number text not null unique default (${q(inv.prefix + '-')} || nextval('${S}.${T.invoices}_number_seq')::text),
+  status text not null default 'draft' check (status in ('draft', 'open', 'paid', 'void', 'refunded')),
+  booking_id uuid${BOOKING ? ` references ${S}.${T.bookings}(id) on delete set null` : ''},
+  name text not null default '',
+  email text not null default '',
+  phone text not null default '',
+  address text not null default '',
+  lang text not null default 'en',
+  items jsonb not null default '[]'::jsonb,
+  currency text not null default 'usd',
+  tax_rate integer not null default 0,
+  subtotal integer not null default 0,
+  tax integer not null default 0,
+  credit integer not null default 0,
+  total integer not null default 0,
+  balance integer not null default 0,
+  notes text not null default '',
+  owner_note text not null default '',
+  due_date date,
+  pay_token_hash text unique,
+  stripe_session_id text,
+  stripe_payment_intent text,
+  paid_at timestamptz,
+  paid_via text,
+  paid_method text,
+  paid_amount integer,
+  paid_reference text not null default '',
+  refund_id text,
+  refunded_at timestamptz,
+  void_reason text not null default '',
+  sent_at timestamptz,
+  view_count integer not null default 0,
+  first_viewed_at timestamptz,
+  last_viewed_at timestamptz,
+  reminders_sent jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid references ${S}.${T.editors}(id) on delete set null,
+  updated_by uuid references ${S}.${T.editors}(id) on delete set null
+);
+
+alter sequence ${S}.${T.invoices}_number_seq owned by ${S}.${T.invoices}.number;
+
+create index if not exists ${T.invoices}_status_due_idx on ${S}.${T.invoices} (status, due_date);
+create index if not exists ${T.invoices}_booking_idx on ${S}.${T.invoices} (booking_id);
+create index if not exists ${T.invoices}_session_idx on ${S}.${T.invoices} (stripe_session_id);
+create index if not exists ${T.invoices}_created_idx on ${S}.${T.invoices} (created_at desc);
+
+alter table ${S}.${T.invoices} enable row level security;
+revoke all on ${S}.${T.invoices} from anon, authenticated;
+revoke all on sequence ${S}.${T.invoices}_number_seq from anon, authenticated;
+grant usage, select on sequence ${S}.${T.invoices}_number_seq to service_role;
+`;
+}
+
+export function invoicesMigrationSql() {
+  return `-- ${config.name}: invoices paid through Stripe + the customer's deposit reminder (clients/${config.slug}/).
+-- Generated by scripts/gen-migration.mjs --invoices from site.config.mjs.
+-- Apply BEFORE deploying the code that reads it (the bookings select names
+-- deposit_reminder_sent_at; the Invoices screen and pay page query the table).
+
+${invoicesTableSql()}${BOOKING ? `
+-- the customer's own reminder while the deposit is due (one, halfway through the hold)
+alter table ${config.supabase.schema}.${config.tables.bookings}
+  add column if not exists deposit_reminder_sent_at timestamptz;
+` : ''}`;
+}
+
 export function customerBookingsSql() {
   const T = config.tables;
   const S = config.supabase.schema;
@@ -422,6 +509,7 @@ create index if not exists ${T.revisions}_created_idx
 ${BOOKING ? bookingsTableSql() : ''}
 ${config.payments ? secretsTableSql() : ''}
 ${config.questions ? questionsTablesSql() : ''}
+${config.invoices ? invoicesTableSql() : ''}
 alter table ${S}.${T.editors} enable row level security;
 alter table ${S}.${T.login_tokens} enable row level security;
 alter table ${S}.${T.content} enable row level security;
@@ -484,13 +572,18 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.error('site.config.mjs has no payments; nothing to generate');
     process.exit(1);
   }
+  const onlyInvoices = process.argv.includes('--invoices');
+  if (onlyInvoices && !config.invoices) {
+    console.error('site.config.mjs has no invoices; nothing to generate');
+    process.exit(1);
+  }
   const onlyDeposit = process.argv.includes('--deposit');
   const onlyCar = process.argv.includes('--car');
   if ((onlyBookings || onlyDeposit || onlyCar) && !BOOKING) {
     console.error('site.config.mjs has no booking calendar in request mode; nothing to generate');
     process.exit(1);
   }
-  const sql = onlyCustomerBookings ? customerBookingsMigrationSql() : onlyQuestions ? questionsMigrationSql() : onlyPasswords ? passwordsMigrationSql() : onlySecrets ? secretsMigrationSql() : onlyCar ? carMigrationSql() : onlyDeposit ? depositMigrationSql() : onlyBookings ? bookingsMigrationSql() : migrationSql();
+  const sql = onlyInvoices ? invoicesMigrationSql() : onlyCustomerBookings ? customerBookingsMigrationSql() : onlyQuestions ? questionsMigrationSql() : onlyPasswords ? passwordsMigrationSql() : onlySecrets ? secretsMigrationSql() : onlyCar ? carMigrationSql() : onlyDeposit ? depositMigrationSql() : onlyBookings ? bookingsMigrationSql() : migrationSql();
   if (out) {
     writeFileSync(out, sql);
     console.log(`wrote ${out}`);

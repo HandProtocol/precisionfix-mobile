@@ -183,6 +183,33 @@ export function normalizePayments(p) {
   return { provider, webhookPath, events, permissions, purpose: String(p.purpose || 'payments') };
 }
 
+// invoices: the owner bills a finished job and the customer pays the whole
+// balance online through Stripe Checkout, on the owner's own account
+// (lib/invoices.mjs). Needs config.payments (the keys) and a booking calendar
+// for the "make an invoice from this booking" path; a blank invoice works too.
+//   prefix      the number's prefix: 'PF' → PF-1001, PF-1002 …
+//   dueDays     days after sending it is due; 0 = due on receipt
+//   reminders   days past due the customer is reminded (the last one tells the owner too)
+//   taxRate     sales tax in basis points (825 = 8.25%) on lines marked taxable; 0 = none
+//   taxLabel    what the tax line is called
+// null = none.
+export function normalizeInvoices(v, payments) {
+  if (!v) return null;
+  must(typeof v === 'object', 'invoices must be an object');
+  must(Boolean(payments), 'invoices needs payments (the Stripe keys the balance is paid through)');
+  const prefix = String(v.prefix || 'INV').toUpperCase();
+  must(/^[A-Z][A-Z0-9]{0,7}$/.test(prefix), 'invoices.prefix must be 1-8 letters or digits, starting with a letter');
+  const dueDays = v.dueDays === undefined ? 0 : Number(v.dueDays);
+  must(Number.isInteger(dueDays) && dueDays >= 0 && dueDays <= 90, 'invoices.dueDays must be a whole number of days, 0 … 90');
+  const reminders = (Array.isArray(v.reminders) ? v.reminders : [3, 7, 14]).map(Number);
+  reminders.forEach((d) => must(Number.isInteger(d) && d >= 1 && d <= 90, 'invoices.reminders must be whole days past due, 1 … 90'));
+  const taxRate = v.taxRate === undefined ? 0 : Number(v.taxRate);
+  must(Number.isInteger(taxRate) && taxRate >= 0 && taxRate <= 2500, 'invoices.taxRate must be basis points, 0 … 2500 (825 = 8.25%)');
+  const start = v.start === undefined ? 1001 : Number(v.start);
+  must(Number.isInteger(start) && start >= 1, 'invoices.start must be a positive whole number');
+  return { prefix, dueDays, reminders: [...new Set(reminders)].sort((a, b) => a - b), taxRate, taxLabel: String(v.taxLabel || 'Sales tax'), start };
+}
+
 // questions: customers ask the owner before they book (lib/questions.mjs).
 // A customer account (email link or password) holds their conversations.
 //   inboundDomain   where email replies land (Resend receiving MX). '' = replies by email go to EMAIL_REPLY_TO instead
@@ -234,6 +261,8 @@ export function normalizeConfig(c) {
     payments: normalizePayments(c.payments),
     // Customer questions before booking (see normalizeQuestions above). null = none.
     questions: normalizeQuestions(c.questions),
+    // Invoices paid through Stripe (see normalizeInvoices above). null = none.
+    invoices: normalizeInvoices(c.invoices, c.payments),
     tables: {
       editors: `${dbPrefix}_editors`,
       login_tokens: `${dbPrefix}_login_tokens`,
@@ -245,6 +274,8 @@ export function normalizeConfig(c) {
       ...(c.payments ? { secrets: `${dbPrefix}_secrets` } : {}),
       // only with config.questions
       ...(c.questions ? { customers: `${dbPrefix}_customers`, customer_tokens: `${dbPrefix}_customer_tokens`, threads: `${dbPrefix}_threads`, messages: `${dbPrefix}_messages` } : {}),
+      // only with config.invoices
+      ...(c.invoices ? { invoices: `${dbPrefix}_invoices` } : {}),
     },
     bucket: slug,
     cacheTag: slug,
@@ -261,6 +292,7 @@ export const BOOKING = config.booking && config.booking.mode === 'request' ? con
 // Owner-connected payments (the Payments screen in /admin/), or null.
 export const PAYMENTS = config.payments;
 export const QUESTIONS = config.questions;
+export const INVOICES = config.invoices;
 
 // Resolves a config list that may be a function of the content document.
 export function resolveList(v, content) {

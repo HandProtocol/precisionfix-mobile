@@ -10,7 +10,7 @@
 // Photos / Menu one tap away. Places are routes (#home, #bookings,
 // #content/<section>, #look, #payments …) so the phone's back button works.
 
-import { BOOKING, PAYMENTS, QUESTIONS, config } from './config.mjs';
+import { BOOKING, INVOICES, PAYMENTS, QUESTIONS, config } from './config.mjs';
 import { escapeHtml as e, faviconLink } from './html.mjs';
 import { adminThemeVars } from './theme.mjs';
 import { checklistHtml, checklistItems, looksHtml } from './checklist.mjs';
@@ -118,6 +118,7 @@ const ICONS = {
   out: '<path d="M14.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-3.5"/><path d="M10 16.5 5.5 12 10 7.5M5.5 12H15"/>',
   chat: '<path d="M4.5 5.5h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 3.5V17.5h-1A1.5 1.5 0 0 1 3 16V7a1.5 1.5 0 0 1 1.5-1.5z"/><path d="M8 10h8M8 13.5h5"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16 7l2.5 2.5M14 9l2 2"/>',
+  invoice: '<path d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z"/><path d="M9 8h6M9 11.5h6M9 15h3.5"/>',
 };
 export function icon(name) {
   return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
@@ -127,11 +128,12 @@ export function icon(name) {
 // route admin.js understands (#home, #bookings, #content/<section> …);
 // `when` drops places a site does not have. The Home tiles, the phone dock
 // and the menu's "Find" box all read from this one list.
-export function destinations({ booking = BOOKING, payments = PAYMENTS, questions = QUESTIONS, themes = config.themes, tasks = checklistItems() } = {}) {
+export function destinations({ booking = BOOKING, payments = PAYMENTS, questions = QUESTIONS, invoices = INVOICES, themes = config.themes, tasks = checklistItems() } = {}) {
   const all = [
     { group: 'Today', go: 'home', icon: 'home', label: 'Home', sub: 'Everything at a glance' },
     { group: 'Today', go: 'bookings', icon: 'bookings', label: 'Bookings', sub: 'Requests, confirmed jobs, add one by hand', badge: 'bookingcount', when: Boolean(booking) },
     { group: 'Today', go: 'questions', icon: 'chat', label: 'Questions', sub: 'Customers asking before they book', badge: 'questioncount', when: Boolean(questions) },
+    { group: 'Today', go: 'invoices', icon: 'invoice', label: 'Invoices', sub: 'Bill a job; they pay the balance online', badge: 'invoicecount', when: Boolean(invoices) },
     { group: 'Your site', go: 'content', icon: 'content', label: 'Words and info', sub: 'Every line on your site, phone, email, services' },
     { group: 'Your site', go: 'media', icon: 'media', label: 'Photos', sub: 'Add, replace, reorder', badge: 'mediacount' },
     { group: 'Your site', go: 'look', icon: 'look', label: 'Look', sub: 'Colours and style, previewed live', when: Boolean(themes) },
@@ -206,6 +208,26 @@ function questionsPanel() {
               <div class="row"><button class="btn btn--primary" type="submit" id="qssend">Send answer</button></div>
             </form>
           </div>
+        </div>
+      </section>`;
+}
+
+// /admin/ → Invoices (config.invoices): the list, and one invoice open in the
+// editor (lines, totals, send / paid / void / refund). admin.js fills both
+// from /api/admin/invoices; the money is worked out again on the server.
+function invoicesPanel() {
+  return `<!-- Invoices -->
+      <section class="panel panel--single" id="panel-invoices" hidden>
+        <div class="content narrow iv">
+          <header class="panel__head">
+            <div><h2>Invoices</h2><p class="muted">Bill a finished job: labor, parts, the gas surcharge. A paid deposit comes off by itself. The customer gets a link and pays the whole balance by card; you are emailed when it is paid.</p><p class="muted tiny iv-pay" id="ivpay" hidden></p></div>
+            <div class="row"><button class="btn btn--primary btn--sm" id="ivnew" type="button">+ New invoice</button></div>
+          </header>
+          <div id="ivlistwrap">
+            <div class="iv-tabs" id="ivtabs" role="tablist"></div>
+            <div id="ivlist" class="iv-list"></div>
+          </div>
+          <div id="ived" class="iv-ed" hidden></div>
         </div>
       </section>`;
 }
@@ -413,6 +435,8 @@ ${
       ${BOOKING ? bookingsPanel() : ''}
 
       ${QUESTIONS ? questionsPanel() : ''}
+
+      ${INVOICES ? invoicesPanel() : ''}
 
       ${PAYMENTS ? paymentsPanel() : ''}
 

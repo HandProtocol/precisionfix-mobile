@@ -10,12 +10,13 @@
 // Without a Stripe key nothing here runs: the deposit stays `none` and the
 // calendar behaves exactly as before (so the keys can arrive after deploy).
 
-import { BOOKING, config, siteName } from './config.mjs';
-import { bookingByDepositSession, bookingById, overdueDeposits, updateBooking } from './booking-db.mjs';
+import { BOOKING, INVOICES, config, siteName } from './config.mjs';
+import { handleInvoiceSession } from './invoices.mjs';
+import { bookingByDepositSession, bookingById, depositsToRemind, overdueDeposits, updateBooking } from './booking-db.mjs';
 import { sendBookingEmail } from './booking-email.mjs';
 import { createCheckoutSession, fmtMoney, getCheckoutSession, refundPaymentIntent, stripeConfigured } from './stripe.mjs';
 import { intakeFor } from './booking-form.mjs';
-import { settingsFrom } from './booking.mjs';
+import { settingsFrom, zonedParts } from './booking.mjs';
 import { loadSite } from './content.mjs';
 import { manageToken } from './booking-token.mjs';
 
@@ -46,6 +47,7 @@ export function dueFields(now = new Date()) {
     deposit_currency: DEPOSIT.currency,
     deposit_due_by: new Date(now.getTime() + DEPOSIT.holdHours * 3600 * 1000).toISOString(),
     deposit_nudge_sent_at: null,
+    deposit_reminder_sent_at: null,
   };
 }
 
@@ -155,6 +157,8 @@ export async function syncFromSession({ booking, sessionId, origin }) {
 export async function handleStripeEvent(event, { origin = config.productionUrl } = {}) {
   if (!event || event.type !== 'checkout.session.completed') return { handled: false, reason: 'ignored' };
   const session = event.data && event.data.object;
+  // an invoice's page (lib/invoices.mjs) shares this webhook: its metadata names the invoice
+  if (session && session.metadata && session.metadata.invoice_id && INVOICES) return handleInvoiceSession(session, { origin });
   if (!session || session.payment_status !== 'paid') return { handled: false, reason: 'unpaid' };
   const id = (session.metadata && session.metadata.booking_id) || session.client_reference_id || '';
   let booking = /^[0-9a-f-]{36}$/i.test(id) ? await bookingById(id) : null;
@@ -179,6 +183,29 @@ export async function nudgeOverdueDeposits({ now = new Date(), origin = config.p
     const r = await sendBookingEmail('owner_deposit_overdue', { ...ctx, booking, links: { open: `${origin}/admin/#bookings` } });
     if (r.ok) sent++;
     await updateBooking(booking.id, { deposit_nudge_sent_at: now.toISOString() }).catch((err) => console.warn(`[deposit] nudge mark failed: ${err.message}`));
+  }
+  return { sent, due: rows.length };
+}
+
+// Hourly too: halfway through the hold, a still-due deposit gets ONE email
+// to the customer with the Pay button (the owner's nudge comes after the
+// hold). Not between 9 PM and 8 AM site time: the next run catches it.
+export const REMIND_QUIET = { before: 8, from: 21 };
+export async function remindDueDeposits({ now = new Date(), origin = config.productionUrl } = {}) {
+  if (!depositEnabled()) return { sent: 0, due: 0 };
+  const { hh } = zonedParts(now, BOOKING.tz);
+  if (hh < REMIND_QUIET.before || hh >= REMIND_QUIET.from) return { sent: 0, due: 0, quiet: true };
+  const holdEnd = new Date(now.getTime() + (DEPOSIT.holdHours / 2) * 3600e3).toISOString();
+  const rows = await depositsToRemind(now.toISOString(), holdEnd);
+  let sent = 0;
+  if (!rows.length) return { sent, due: 0 };
+  const { content } = await loadSite();
+  const ctx = { origin, intake: intakeFor(content), settings: settingsFrom(content) };
+  for (const booking of rows) {
+    const r = await sendBookingEmail('deposit_reminder', { ...ctx, booking, manageUrl: `${origin}/booking/manage?t=${manageToken(booking.id)}`, payUrl: payUrlFor(booking.id, origin) });
+    if (r.ok) sent++;
+    // marked either way: a customer without email is not retried every hour
+    await updateBooking(booking.id, { deposit_reminder_sent_at: now.toISOString() }).catch((err) => console.warn(`[deposit] reminder mark failed: ${err.message}`));
   }
   return { sent, due: rows.length };
 }

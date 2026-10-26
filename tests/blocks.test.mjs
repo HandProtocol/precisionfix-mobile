@@ -40,9 +40,13 @@ test('themeVars emits every token plus rgb triplets for hex values', () => {
 });
 
 test('headTags carries canonical, og, theme-color, fonts and the theme style', () => {
+  // the canonical is the production address even when another host served the page
   const html = B.headTags({ content: base(), featured: null, origin: 'https://example.test' });
-  assert.match(html, /<link rel="canonical" href="https:\/\/example\.test\/">/);
-  assert.match(html, /property="og:url" content="https:\/\/example\.test\/"/);
+  const prod = config.productionUrl.replace(/[.\/]/g, '\\$&');
+  assert.match(html, new RegExp(`<link rel="canonical" href="${prod}/">`));
+  assert.match(html, new RegExp(`property="og:url" content="${prod}/"`));
+  assert.equal(html.includes('example.test'), false);
+  assert.match(html, /property="og:site_name"/);
   assert.ok(html.includes(`name="theme-color" content="${config.theme.bg}"`));
   assert.match(html, /<style id="theme">:root\{/);
   if (config.fonts.googleCss) assert.match(html, /fonts\.googleapis\.com/);
@@ -73,4 +77,24 @@ test('headTags: a runtime theme + fonts override the config palette; a valid ver
   const bad = B.headTags({ content: { ...content, seo: { google_verification: '<script>' } }, featured: null });
   assert.equal(bad.includes('google-site-verification'), false);
   assert.match(B.headTags({ content, featured: null }), new RegExp(`--bg:${B.config.theme.bg}`));
+  // Bing Webmaster Tools verifies the same way
+  const bing = B.headTags({ content: { ...content, seo: { bing_verification: 'ABCDEF0123456789ABCDEF0123456789' } }, featured: null });
+  assert.match(bing, /<meta name="msvalidate\.01" content="ABCDEF0123456789ABCDEF0123456789">/);
+  assert.equal(B.headTags({ content: { ...content, seo: { bing_verification: '"><x' } }, featured: null }).includes('msvalidate'), false);
+});
+
+test('shareImage: a 1200x630 JPEG from the image CDN for uploads; the plain file for local previews', () => {
+  const up = { full: '/.netlify/images?url=x', original: '/img/photos/car.jpg', srcset: 'a 480w', alt: 'Car' };
+  const s = B.shareImage(up);
+  assert.match(s.url, /\/\.netlify\/images\?url=%2Fimg%2Fphotos%2Fcar\.jpg&w=1200&h=630&fit=cover&fm=jpg/);
+  assert.equal(s.url.startsWith(config.productionUrl), true);
+  assert.deepEqual([s.width, s.height, s.alt], [1200, 630, 'Car']);
+  assert.equal(B.shareImage({ full: '/img/x.svg', original: '/img/x.svg', srcset: '', alt: '' }).width, null);
+  assert.equal(B.shareImage(null), null);
+  const html = B.headTags({ content: base(), featured: up });
+  assert.match(html, /og:image:width" content="1200"/);
+  assert.match(html, /name="twitter:image"/);
+  // a tag the caller passes in extra is not emitted twice
+  const dup = B.headTags({ content: base(), featured: up, extra: '<meta property="og:image:alt" content="Mine">' });
+  assert.equal(dup.match(/og:image:alt/g).length, 1);
 });

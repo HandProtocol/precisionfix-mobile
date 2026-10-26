@@ -1,11 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import sitemap, { config } from '../netlify/functions/sitemap.mjs';
+import { config, sitemapXml } from '../netlify/functions/sitemap.mjs';
 
-test('sitemap lists the served origin only', async () => {
-  const res = await sitemap(new Request('https://my-domain.test/sitemap.xml'));
-  assert.equal(res.status, 200);
-  assert.match(res.headers.get('content-type'), /xml/);
-  assert.match(await res.text(), /<loc>https:\/\/my-domain\.test\/<\/loc>/);
+const cfg = { productionUrl: 'https://my-domain.test' };
+
+test('sitemap lists the production address with the last publish date', async () => {
+  const xml = await sitemapXml({ cfg, load: async () => ({ updated_at: '2026-10-09T15:17:38.991+00:00' }) });
+  assert.match(xml, /<loc>https:\/\/my-domain\.test\/<\/loc><lastmod>2026-10-09<\/lastmod>/);
+  assert.equal((xml.match(/<url>/g) || []).length, 1);
   assert.equal(config.path, '/sitemap.xml');
+});
+
+test('sitemap: a database hiccup costs the date, never the sitemap', async () => {
+  const xml = await sitemapXml({ cfg, load: async () => { throw new Error('down'); } });
+  assert.match(xml, /<loc>https:\/\/my-domain\.test\/<\/loc><\/url>/);
+  assert.equal(xml.includes('lastmod'), false);
 });

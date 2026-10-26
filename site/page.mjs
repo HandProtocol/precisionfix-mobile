@@ -296,7 +296,7 @@ export function renderPage({ content, media, origin = '', url }) {
     : '';
   const headExtra = `<link rel="stylesheet" href="/assets/themes/${e(T.id)}.css?v=${v}">
 <meta property="og:locale" content="en_US">
-<meta property="og:locale:alternate" content="es_US">${featured && featured.alt ? `\n<meta property="og:image:alt" content="${e(featured.alt)}">` : ''}`;
+<meta property="og:locale:alternate" content="es_US">`;
   // The wordmark stays the visual H1; the eyebrow rides inside it for screen
   // readers and search ("Precision Fix — Austin, TX · Mobile Mechanic").
   const h1Suffix = c.hero.eyebrow ? `<span class="sr"> — ${e(c.hero.eyebrow)}</span>` : '';

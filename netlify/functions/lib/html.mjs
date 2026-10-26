@@ -22,13 +22,20 @@ export function paragraphs(text, className) {
     .join('');
 }
 
-export function telHref(phone) {
+// A bare 10-digit US number gains +1 so the link dials from anywhere
+// (search engines and phones abroad read it as international).
+function dialable(phone) {
   const digits = String(phone || '').replace(/[^\d+]/g, '');
+  return /^\d{10}$/.test(digits) ? `+1${digits}` : digits;
+}
+
+export function telHref(phone) {
+  const digits = dialable(phone);
   return digits ? `tel:${digits}` : '';
 }
 
 export function smsHref(phone) {
-  const digits = String(phone || '').replace(/[^\d+]/g, '');
+  const digits = dialable(phone);
   return digits ? `sms:${digits}` : '';
 }
 

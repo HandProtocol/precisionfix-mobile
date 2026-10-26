@@ -418,3 +418,65 @@ body.has-preview{overflow:hidden}
 .qs__chat .is-them{justify-self:start;background:var(--bg-3);border:1px solid var(--line);border-bottom-left-radius:4px}
 .qs__meta{display:block;margin-top:.3rem;font-size:.72rem;opacity:.75;white-space:normal}
 .qs__reply{display:grid;gap:.6rem}
+
+/* Invoices (lib/admin-page.mjs invoicesPanel, admin.js ivList / ivEdit) */
+.iv{display:grid;gap:1rem}
+.iv input[type=number],.iv input[type=tel]{width:100%;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:.7rem .85rem;color:var(--ink);font-size:16px;font-variant-numeric:tabular-nums}
+.iv input:disabled,.iv select:disabled,.iv textarea:disabled{opacity:.7}
+.iv-pay{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.iv-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.8rem}
+.iv-tab{font:inherit;font-size:.85rem;font-weight:600;padding:.45rem .9rem;border-radius:var(--r-pill);border:1px solid var(--line);background:var(--bg-2);color:var(--ink-2);cursor:pointer}
+.iv-tab.is-active{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.iv-list{display:grid;gap:.5rem}
+.iv-owed{font-size:1rem}.iv-owed b{font-size:1.25rem}
+.iv-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.2rem .8rem;align-items:center;text-align:left;width:100%;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-lg);padding:.85rem 1rem;color:var(--ink);font:inherit;cursor:pointer;transition:border-color .2s}
+.iv-item:hover{border-color:var(--accent-2)}
+.iv-item__who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iv-item__amt{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.iv-item__meta{grid-column:1 / 3;font-size:.8rem;color:var(--ink-3)}
+.iv-item .iv-chip{justify-self:end}
+.iv-item--overdue{border-color:rgb(var(--bad-rgb) / .5)}
+.iv-chip{display:inline-block;font-size:.72rem;font-weight:700;padding:.22rem .6rem;border-radius:var(--r-pill);background:var(--bg-4);color:var(--ink-2);white-space:nowrap}
+.iv-chip--open{background:rgb(var(--accent-rgb) / .16);color:var(--accent-2)}
+.iv-chip--overdue{background:rgb(var(--bad-rgb) / .16);color:var(--bad)}
+.iv-chip--paid{background:rgb(var(--ok-rgb) / .16);color:var(--ok)}
+.iv-ed{display:grid;gap:1rem}
+.iv-ed[hidden],#ivlistwrap[hidden]{display:none}
+.iv-ed__head{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap}
+.iv-ed__head h3{font-size:1.3rem}
+.iv-facts{font-size:.85rem}
+.iv-who{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.8rem}
+.iv-sub{font-size:.78rem;letter-spacing:var(--label-spacing);text-transform:var(--label-transform);color:var(--ink-3);margin-top:.4rem}
+.iv-lines{display:grid;gap:.6rem}
+.iv-line{display:grid;gap:.5rem;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:.7rem}
+.iv-line--discount{border-style:dashed}
+.iv-line__top{display:grid;grid-template-columns:minmax(110px,9rem) minmax(0,1fr);gap:.5rem}
+.iv-line__nums{display:grid;grid-template-columns:minmax(70px,6.5rem) minmax(90px,8rem) auto 1fr auto;gap:.5rem;align-items:end}
+.iv-line__nums label{display:grid;gap:.2rem;font-size:.72rem;color:var(--ink-3)}
+.iv-line__tax{display:flex!important;align-items:center;gap:.3rem;font-size:.8rem!important;padding-bottom:.7rem}
+.iv-line__amt{justify-self:end;font-weight:700;font-variant-numeric:tabular-nums;padding-bottom:.7rem}
+.iv-line__x{margin-bottom:.35rem;font-size:1.1rem}
+.iv-add{flex-wrap:wrap}
+.iv-taxrate{max-width:18rem}
+.iv-totals{display:grid;gap:.35rem;margin-left:auto;width:min(340px,100%);font-variant-numeric:tabular-nums}
+.iv-totals div{display:flex;justify-content:space-between;gap:1rem}
+.iv-totals .muted{color:var(--ink-3)}
+.iv-totals__due{border-top:1px solid var(--accent);padding-top:.5rem;font-weight:700;font-size:1.15rem}
+.iv-acts{display:flex;gap:.5rem;flex-wrap:wrap;position:sticky;bottom:calc(64px + env(safe-area-inset-bottom,0px));background:rgb(var(--bg-rgb) / .9);backdrop-filter:blur(12px);padding:.6rem 0;z-index:5}
+.bk__chip--link{border:0;font:inherit;font-size:.74rem;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+@media (max-width:560px){
+  .iv-line__top{grid-template-columns:1fr}
+  .iv-line__nums{grid-template-columns:1fr 1fr auto;}
+  .iv-line__nums .iv-line__tax{grid-column:1 / 2}
+  .iv-line__amt{grid-column:2 / 3}
+  .iv-item{grid-template-columns:minmax(0,1fr) auto}
+  .iv-item strong{grid-column:1 / 3}
+  .iv-item__meta{grid-column:1 / 3}
+}
+@media (min-width:901px){.iv-acts{bottom:0}}
+
+/* Paid another way: reference + day side by side; the bookkeeping download */
+.iv-paidrow{display:grid;grid-template-columns:2fr 1fr;gap:.75rem}
+.iv-export{margin-top:1rem;font-size:.85rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.iv-export[hidden]{display:none}
+@media (max-width:560px){.iv-paidrow{grid-template-columns:1fr}}

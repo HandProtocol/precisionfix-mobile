@@ -3,7 +3,8 @@
 //   GET  /api/booking/days?from=YYYY-MM-DD&to=YYYY-MM-DD  → open days + offered times (never other people's requests)
 //   POST /api/booking                                    → store a request, email the owner + the customer
 //   GET  /api/booking/manage?t=                          → the customer's booking as JSON
-//   POST /api/booking/manage?t=  { action: cancel | rebook | share }      share: the car (vin / car_model) and what they noticed (issues + the agreement), after the request (lib/booking-car.mjs)
+//   POST /api/booking/manage?t=  { action: cancel | rebook | share | link }  share: the car (vin / car_model) and what they noticed (issues + the agreement), after the request (lib/booking-car.mjs); link: email the booking's link again
+//   POST /api/booking/find      { email }                                  → email the links of that address's upcoming bookings (same answer either way)
 //   GET  /booking/manage?t=[&sent=1]                     → the customer's manage page (HTML)
 //   GET  /api/booking/act?t=&do=confirm|decline          → owner one-tap page from the email: asks, acts on nothing
 //   POST /api/booking/act?t=&do=confirm|decline          → that page's button: acts, shows the result (lib/booking-act.mjs)
@@ -13,6 +14,8 @@
 //
 // Honeypot (bot-field), same-origin on POST, per-IP rate limit, every value
 // clipped and checked against the pack's field list before it is stored.
+// One upcoming request per person, per-person and site-wide daily caps, and
+// the link mails' caps: lib/booking-guard.mjs.
 
 import { BOOKING, QUESTIONS, config as site } from './lib/config.mjs';
 import { customerForBooking } from './lib/customers.mjs';
@@ -23,6 +26,7 @@ import { buildBookingRow, intakeFor } from './lib/booking-form.mjs';
 import { activeBookingsBetween, bookingByManageHash, countRecentByIp, createBooking, updateBooking } from './lib/booking-db.mjs';
 import { sendBookingEmail, whenText } from './lib/booking-email.mjs';
 import { renderManagePage } from './lib/booking-page.mjs';
+import { allowFind, allowLinkMail, allowRequest, contactKey, emailKey, findDuplicate, LIMITS } from './lib/booking-guard.mjs';
 import crypto from 'node:crypto';
 import { actHash, actToken as actTokenFor, feedTokenOk, manageHash, manageToken } from './lib/booking-token.mjs';
 import { bookingIcs, icsCalendarFor } from './lib/booking-email.mjs';
@@ -79,6 +83,17 @@ async function create(req, url) {
 
   const { content } = await loadSite();
   const { row, settings } = buildBookingRow({ body, content });
+  const origin = `${url.protocol}//${url.host}`;
+  const intake = intakeFor(content);
+  // One upcoming request per person: the same email or phone gets its link
+  // emailed again instead of a second row. "Send it anyway" (a second car)
+  // posts another=1 and still counts against the caps below.
+  if (String(body.another || '') !== '1') {
+    const upcoming = await listBookings({ statuses: ['requested', 'confirmed'], from: new Date(Date.now() - 12 * 3600 * 1000).toISOString() });
+    const dup = findDuplicate(row, upcoming);
+    if (dup) return alreadyAnswer(req, { dup, origin, intake, settings, lang });
+  }
+  if (!(await allowRequest(contactKey(row)))) return json(429, { ok: false, error: lang === 'es' ? 'Ya recibimos varias solicitudes tuyas hoy. Te contactamos pronto, o llámanos o escríbenos.' : 'We already have several requests from you today. We will be in touch soon, or call or text us.' });
   // A booking with an email belongs to that customer's account; a failure
   // here never costs the request.
   const customerId = QUESTIONS && row.email
@@ -98,8 +113,6 @@ async function create(req, url) {
   });
   if (!booking) throw new Error('booking insert returned nothing');
 
-  const origin = `${url.protocol}//${url.host}`;
-  const intake = intakeFor(content);
   const manageUrl = `${origin}/booking/manage?t=${manageToken(id)}`;
   const actToken = actTokenFor(id, createdAt);
   const others = await activeBookingsBetween(booking.starts_at, booking.ends_at).catch(() => []);
@@ -122,6 +135,51 @@ async function create(req, url) {
     manage_url: manageUrl,
     emailed: customer.ok,
   });
+}
+
+// The same person already has a request ahead: email its link again (the
+// address on that booking, never the one just typed) and say so. The answer
+// names no time or service: anyone can type someone else's phone.
+async function alreadyAnswer(req, { dup, origin, intake, settings, lang }) {
+  const emailed = await sendLink(dup, { origin, intake, settings });
+  const msg = lang === 'es'
+    ? (emailed ? 'Ya tienes una solicitud con este correo o teléfono. Te enviamos su enlace otra vez: revisa tu correo (y la carpeta de spam).' : 'Ya tienes una solicitud con este correo o teléfono. Busca el correo con su enlace, o llámanos o escríbenos.')
+    : (emailed ? 'You already have a request in with this email or phone. We just emailed you its link again: check your inbox (and spam).' : 'You already have a request in with this email or phone. Look for the email with its link, or call or text us.');
+  console.log(`[${site.slug} booking] already ${dup.id}: link ${emailed ? 'sent' : 'not sent'}`);
+  if (wantsHtml(req)) return html(200, renderManagePage({ booking: null, error: msg }));
+  return json(200, { ok: true, already: true, emailed, message: msg });
+}
+
+// The booking's link to the email on it, under the per-booking caps. A new
+// token each time is not needed: the manage token is derived from the id.
+async function sendLink(booking, { origin, intake, settings }) {
+  if (!(await allowLinkMail(booking.id))) return false;
+  const r = await sendBookingEmail('link', { booking, origin, intake, settings, manageUrl: `${origin}/booking/manage?t=${manageToken(booking.id)}` });
+  return Boolean(r.ok);
+}
+
+// "Find my booking": an email in, the links of its upcoming bookings out by
+// email. The answer is the same whether or not anything was found, so the
+// form cannot be used to learn who has booked.
+async function find(req, url) {
+  if (!sameOrigin(req)) return json(403, { ok: false, error: 'Cross-origin request blocked' });
+  const body = await readBody(req);
+  const lang = body.lang === 'es' ? 'es' : 'en';
+  if (String(body['bot-field'] || '').trim()) return json(200, { ok: true });
+  const email = emailKey(body.email).slice(0, 120);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json(400, { ok: false, error: lang === 'es' ? 'Escribe el correo que usaste para reservar.' : 'Type the email you booked with.' });
+  if (!dbConfigured()) return json(503, { ok: false, error: lang === 'es' ? 'No disponible ahora. Llámanos.' : 'Not available right now. Call us.' });
+  if (!(await allowFind(clientIp(req), email))) return json(429, { ok: false, error: lang === 'es' ? 'Demasiados intentos. Intenta más tarde, o llámanos.' : 'Too many tries. Try again later, or call us.' });
+  const upcoming = await listBookings({ statuses: ['requested', 'confirmed'], from: new Date(Date.now() - 12 * 3600 * 1000).toISOString() });
+  const mine = upcoming.filter((b) => emailKey(b.email) === email && new Date(b.ends_at || b.starts_at) > new Date()).slice(0, LIMITS.findMaxBookings);
+  if (mine.length) {
+    const { content } = await loadSite();
+    const origin = `${url.protocol}//${url.host}`;
+    const intake = intakeFor(content), settings = settingsFrom(content);
+    for (const b of mine) await sendLink(b, { origin, intake, settings });
+  }
+  console.log(`[${site.slug} booking] find: ${mine.length} upcoming`);
+  return json(200, { ok: true, message: lang === 'es' ? 'Si hay una reserva con ese correo, te acabamos de enviar su enlace. Revisa tu correo (y la carpeta de spam). ¿Nada en unos minutos? Llámanos o escríbenos.' : 'If there is a booking with that email, we just sent you its link. Check your inbox (and spam). Nothing in a few minutes? Call or text us.' });
 }
 
 // --- manage (customer) --------------------------------------------------------------
@@ -217,8 +275,9 @@ async function manageAct(req, url) {
   if (!booking) return wantsHtml(req) ? html(404, renderManagePage({ booking: null, token })) : json(404, { ok: false, error: 'Not found' });
   const action = String(body.action || '');
   const active = booking.status === 'requested' || booking.status === 'confirmed';
-  if (!['cancel', 'rebook', 'share'].includes(action)) return json(400, { ok: false, error: 'Unknown action' });
+  if (!['cancel', 'rebook', 'share', 'link'].includes(action)) return json(400, { ok: false, error: 'Unknown action' });
   if (action === 'share') return shareCar({ booking, body, active });
+  if (action === 'link') return emailLink({ booking, body, url });
   const { content } = await loadSite();
   const intake = intakeFor(content), settings = settingsFrom(content);
   let updated = booking, emailed = false;
@@ -237,6 +296,18 @@ async function manageAct(req, url) {
   if (action === 'rebook') return new Response(null, { status: 303, headers: { Location: '/#book' } });
   if (wantsHtml(req)) return html(200, renderManagePage({ booking: updated, token, intake, settings, justCancelled: active }));
   return json(200, { ok: true, status: updated.status, emailed });
+}
+
+// "Email me the link again" from the sent screen: the token holder asks for
+// the mail the request made, in case it went missing.
+async function emailLink({ booking, body, url }) {
+  const lang = body.lang === 'es' ? 'es' : booking.lang === 'es' ? 'es' : 'en';
+  if (!booking.email) return json(409, { ok: false, error: lang === 'es' ? 'Esta solicitud no tiene correo. Guarda el enlace de esta página, o llámanos o escríbenos.' : 'This request has no email. Keep the link on this page, or call or text us.' });
+  const { content } = await loadSite();
+  const origin = `${url.protocol}//${url.host}`;
+  const emailed = await sendLink(booking, { origin, intake: intakeFor(content), settings: settingsFrom(content) });
+  if (!emailed) return json(429, { ok: false, error: lang === 'es' ? 'Ya te lo enviamos hace poco. Revisa tu correo y la carpeta de spam, o llámanos.' : 'We sent it a few minutes ago. Check your inbox and spam, or call us.' });
+  return json(200, { ok: true, emailed: true });
 }
 
 // The car and what they noticed, posted onto the request after it is sent
@@ -283,6 +354,7 @@ export default async (req) => {
     if (sub === 'stripe') return m === 'POST' ? await stripeWebhook(req, url) : json(405, { ok: false, error: 'POST only' });
     if (sub === 'days' && m === 'GET') return await days(url);
     if (sub === '' && m === 'POST') return await create(req, url);
+    if (sub === 'find' && m === 'POST') return await find(req, url);
     if (sub === 'manage' && m === 'GET') return await manageJson(url);
     if (sub === 'manage' && m === 'POST') return await manageAct(req, url).catch((err) => (wantsHtml(req) ? managePageError(err) : handleError(err)));
     if (sub === 'act' && m === 'GET') return await ownerActPage(req, url);

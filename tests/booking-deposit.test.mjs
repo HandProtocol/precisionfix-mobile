@@ -111,7 +111,7 @@ test('the state machine: confirm → due with a 24h hold; owner cancel of a due 
   process.env[`${PREFIX}_STRIPE_SECRET_KEY`] = 'sk_test_x';
   try {
     const due = dueFields(NOW);
-    assert.deepEqual(due, { deposit_status: 'due', deposit_amount: 5000, deposit_currency: 'usd', deposit_due_by: '2026-10-15T18:00:00.000Z', deposit_nudge_sent_at: null });
+    assert.deepEqual(due, { deposit_status: 'due', deposit_amount: 5000, deposit_currency: 'usd', deposit_due_by: '2026-10-15T18:00:00.000Z', deposit_nudge_sent_at: null, deposit_reminder_sent_at: null });
     const confirmed = transition(booking({ status: 'requested' }), 'confirm', {}, { now: NOW });
     assert.equal(confirmed.deposit_status, 'due');
     assert.equal(confirmed.deposit_due_by, '2026-10-15T18:00:00.000Z');

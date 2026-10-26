@@ -7,7 +7,7 @@
   var $$ = function (s, r) { return Array.prototype.slice.call((r || d).querySelectorAll(s)); };
   var DRAFT_KEY = 'site-draft-v1';
 
-  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0, bookings: null, payments: null, questions: null, route: 'home' };
+  var state = { editor: null, site: null, schema: [], content: null, published: null, media: [], dirty: false, setupOpen: 0, bookings: null, payments: null, questions: null, invoices: null, route: 'home' };
 
   // ---------------------------------------------------------------- utils --
   function h(tag, attrs, children) {
@@ -56,7 +56,7 @@
   // #media, #look, #payments, #setup, #editors, #history). go() shows it and
   // pushes history, so the phone's back gesture steps back through places.
   var PHONE = window.matchMedia ? window.matchMedia('(max-width: 900px)') : { matches: false };
-  var TITLES = { home: 'Home', bookings: 'Bookings', questions: 'Questions', content: 'Words and info', media: 'Photos', look: 'Look', payments: 'Payments', setup: 'Setup', account: 'Your sign-in', editors: 'Who can edit', history: 'Publish history' };
+  var TITLES = { home: 'Home', bookings: 'Bookings', questions: 'Questions', invoices: 'Invoices', content: 'Words and info', media: 'Photos', look: 'Look', payments: 'Payments', setup: 'Setup', account: 'Your sign-in', editors: 'Who can edit', history: 'Publish history' };
   function showLogin() {
     $('#app').dataset.state = 'login';
     $('#login').hidden = false; $('#shell').hidden = true;
@@ -73,7 +73,7 @@
     var name = r.split('/')[0], sec = r.split('/')[1] || '';
     if (!name || !$('#panel-' + name)) return { name: 'home', sec: '' };
     if (name === 'editors' && state.editor && state.editor.role !== 'owner') return { name: 'home', sec: '' };
-    return { name: name, sec: name === 'content' || name === 'questions' ? sec : '' };
+    return { name: name, sec: name === 'content' || name === 'questions' || name === 'invoices' ? sec : '' };
   }
   function routeOf(r) { return r.name + (r.sec ? '/' + r.sec : ''); }
   // go('content/calendar') · go('bookings', { replace: true })
@@ -103,6 +103,7 @@
     if (name === 'history') loadHistory();
     if (name === 'bookings') loadBookings();
     if (name === 'questions') openQuestions(r.sec); else stopQuestionPoll();
+    if (name === 'invoices') openInvoices(r.sec);
     if (name === 'payments') loadPayments();
     if (name === 'look') mountLooks();
     if (name === 'home') renderHome();
@@ -273,7 +274,7 @@
   }
   async function enter() {
     await loadSite();
-    await Promise.all([loadBookingSummary(), loadQuestionSummary(), loadPayments({ quiet: true })]);
+    await Promise.all([loadBookingSummary(), loadQuestionSummary(), loadInvoiceSummary(), loadPayments({ quiet: true })]);
     showShell();
     // Land where the link says (#bookings from an email, a reload on #content/hours …), else Home.
     show(parseRoute(location.hash));
@@ -815,6 +816,18 @@
         h('div', { class: 'row' }, [h('button', { class: 'btn btn--sm ' + (unread ? 'btn--primary' : 'btn--ghost'), type: 'button', 'data-go': 'questions', text: unread ? 'Answer questions' : 'Open questions' })]),
       ]));
     }
+    if ($('#panel-invoices')) {
+      var iv = state.invoices, owed = iv ? iv.owed : 0;
+      box.appendChild(homeCard(iv && iv.overdue ? 'hcard--hot' : '', [
+        h('p', { class: 'hcard__k', text: 'Invoices' }),
+        h('p', { class: 'hcard__big' }, iv && iv.open ? [h('b', { text: ivMoney(owed, iv.currency) }), ' owed on ' + iv.open + ' invoice' + (iv.open === 1 ? '' : 's')] : ['Nothing unpaid.']),
+        h('p', { class: 'hcard__line muted', text: iv && iv.overdue ? iv.overdue + ' past due. The site reminds them for you.' : 'Finished a job? Open it in Bookings and tap Make invoice.' }),
+        h('div', { class: 'row' }, [
+          h('button', { class: 'btn btn--sm ' + (iv && iv.open ? 'btn--primary' : 'btn--ghost'), type: 'button', 'data-go': 'invoices', text: 'Open invoices' }),
+          h('button', { class: 'btn btn--ghost btn--sm', type: 'button', 'data-go': 'invoices/new', text: '+ New invoice' }),
+        ]),
+      ]));
+    }
     if (state.setupOpen && $('#panel-setup')) {
       var bar = h('i'); bar.style.setProperty('--p', state.setupTotal ? state.setupDone / state.setupTotal : 0);
       box.appendChild(homeCard('', [
@@ -1053,6 +1066,241 @@
     });
   }
 
+  // ------------------------------------------------------------- invoices --
+  // Bill a finished job (config.invoices): the list with Unpaid / Drafts /
+  // Paid tabs, and one invoice open in the editor. The lines and the live
+  // totals are worked out here as you type (ivTotals mirrors
+  // lib/invoice-core.mjs totalsOf); the server works them out again on save,
+  // with the booking's paid deposit as the credit.
+  var IV = { data: null, tab: 'open', ed: null };
+  var ivPanel = $('#panel-invoices');
+  var IV_KINDS = { labor: 'Labor', part: 'Part', fee: 'Fee', discount: 'Discount' };
+  var IV_STATUS = { draft: 'Draft', open: 'Waiting for payment', overdue: 'Overdue', paid: 'Paid', void: 'Void', refunded: 'Refunded' };
+  var IV_METHODS = {}; // filled from the server's METHOD_LABELS (lib/invoice-core.mjs) when the list loads
+  // what to note for each way of paying (the box under the picker)
+  var IV_REF_HINT = { cash: 'Optional: who handed it over', cash_app: 'Optional: their $Cashtag or the note', zelle: 'Optional: the name or confirmation it came with', venmo: 'Optional: their @name or the note', card_in_person: 'Optional: the reader and last 4 digits', check: 'Check number', paypal: 'Optional: the transaction ID', apple_cash: 'Optional: who it came from', bank_transfer: 'Optional: the transfer reference', other: 'How they paid' };
+  function ivMoney(c, cur) { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: (cur || 'usd').toUpperCase(), minimumFractionDigits: 2 }).format((c || 0) / 100); } catch (_) { return '$' + ((c || 0) / 100).toFixed(2); } }
+  function ivDay(iso) { try { return new Date(String(iso).length === 10 ? iso + 'T12:00:00Z' : iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: String(iso).length === 10 ? 'UTC' : undefined }); } catch (_) { return iso; } }
+  function ivLine(it) { return Math.round(it.qty * it.unit) * (it.kind === 'discount' ? -1 : 1); }
+  function ivTotals(items, taxRate, credit) {
+    var sub = 0, taxable = 0;
+    items.forEach(function (it) { var a = ivLine(it); sub += a; if (it.taxable && it.kind !== 'discount') taxable += a; });
+    var tax = taxRate > 0 ? Math.round(taxable * taxRate / 10000) : 0, total = Math.max(0, sub + tax), used = Math.max(0, Math.min(credit || 0, total));
+    return { subtotal: sub, tax: tax, credit: used, total: total, balance: total - used };
+  }
+  async function loadInvoiceSummary() {
+    if (!ivPanel) return;
+    try { state.invoices = await api('GET', '/api/admin/invoices/summary'); } catch (_) { state.invoices = null; }
+    setBadge('invoicecount', state.invoices && state.invoices.overdue);
+    if (state.route === 'home') renderHome();
+  }
+  async function openInvoices(sec) {
+    if (!ivPanel) return;
+    try { IV.data = await api('GET', '/api/admin/invoices'); } catch (err) { toast(err.message, 'bad'); return; }
+    IV_METHODS = IV.data.config.methodLabels || {};
+    var p = $('#ivpay'); p.hidden = false; p.innerHTML = '';
+    p.appendChild(d.createTextNode(IV.data.config.onlinePay ? 'Stripe is connected: every invoice has a Pay button for the whole balance.' : 'Stripe is not connected yet: invoices go out without a Pay button, and you mark them paid by hand. '));
+    if (!IV.data.config.onlinePay && $('#panel-payments')) p.appendChild(h('button', { class: 'btn btn--primary btn--sm', type: 'button', 'data-go': 'payments', text: 'Connect Stripe' }));
+    if (!sec) return ivList();
+    if (sec === 'new') return ivEdit(ivBlank());
+    if (sec.indexOf('b-') === 0) {
+      try { var r = await api('GET', '/api/admin/invoices/draft?booking=' + encodeURIComponent(sec.slice(2))); return ivEdit(Object.assign({ status: 'new' }, r.draft)); } catch (err) { toast(err.message, 'bad'); return go('invoices', { replace: true }); }
+    }
+    var inv = IV.data.invoices.filter(function (x) { return x.id === sec; })[0];
+    if (!inv) { try { inv = (await api('GET', '/api/admin/invoices/' + encodeURIComponent(sec))).invoice; } catch (err) { toast(err.message, 'bad'); return go('invoices', { replace: true }); } }
+    ivEdit(inv);
+  }
+  function ivBlank() { return { status: 'new', name: '', email: '', phone: '', address: '', lang: 'en', items: [], tax_rate: IV.data.config.taxRate, notes: '', owner_note: '', credit: 0, currency: IV.data.config.currency }; }
+  function ivList() {
+    IV.ed = null; $('#ived').hidden = true; $('#ivlistwrap').hidden = false; $('#ivnew').hidden = false;
+    var all = IV.data.invoices, tabs = $('#ivtabs'); tabs.innerHTML = '';
+    var groups = { open: all.filter(function (x) { return x.status === 'open'; }), draft: all.filter(function (x) { return x.status === 'draft'; }), paid: all.filter(function (x) { return x.status === 'paid'; }), all: all };
+    var names = { open: 'Unpaid', draft: 'Drafts', paid: 'Paid', all: 'All' };
+    Object.keys(names).forEach(function (k) {
+      tabs.appendChild(h('button', { type: 'button', role: 'tab', class: 'iv-tab' + (IV.tab === k ? ' is-active' : ''), 'aria-selected': IV.tab === k ? 'true' : 'false', text: names[k] + ' (' + groups[k].length + ')', onclick: function () { IV.tab = k; ivList(); } }));
+    });
+    // the bookkeeping download sits under the list, on every tab
+    var ex = $('#ivexport') || $('#ivlistwrap').appendChild(h('p', { id: 'ivexport', class: 'iv-export' }, [h('a', { class: 'btn btn--ghost btn--sm', href: '/api/admin/invoices/export.csv', download: '', text: 'Download for bookkeeping (CSV)' }), h('span', { class: 'muted', text: 'Every sent invoice: how and when it was paid, labor, parts, tax. Opens in Excel, Google Sheets or Numbers.' })]));
+    ex.hidden = !all.some(function (x) { return x.status !== 'draft'; });
+    var box = $('#ivlist'); box.innerHTML = '';
+    var rows = groups[IV.tab];
+    if (IV.tab === 'open' && rows.length) {
+      var owed = rows.reduce(function (s, x) { return s + (x.balance || 0); }, 0);
+      box.appendChild(h('p', { class: 'iv-owed' }, [h('b', { text: ivMoney(owed, IV.data.config.currency) }), ' owed to you on ' + rows.length + ' invoice' + (rows.length === 1 ? '' : 's') + '.']));
+    }
+    if (!rows.length) { box.appendChild(h('p', { class: 'bk__empty', text: IV.tab === 'open' ? 'Nothing unpaid. To bill a job, open it in Bookings and tap Make invoice, or tap + New invoice.' : 'Nothing here.' })); return; }
+    rows.forEach(function (x) {
+      var st = x.display_status || x.status;
+      box.appendChild(h('button', { type: 'button', class: 'iv-item iv-item--' + st, onclick: function () { go('invoices/' + x.id); } }, [
+        h('strong', { text: x.number }),
+        h('span', { class: 'iv-item__who', text: x.name || '—' }),
+        h('span', { class: 'iv-item__amt', text: ivMoney(x.status === 'paid' ? (x.paid_amount != null ? x.paid_amount : x.total) : x.balance, x.currency) }),
+        h('span', { class: 'iv-chip iv-chip--' + st, text: IV_STATUS[st] || st }),
+        h('span', { class: 'iv-item__meta', text: x.status === 'draft' ? 'started ' + ivDay(x.created_at) : x.status === 'paid' ? 'paid ' + ivDay(x.paid_at) + ' · ' + (x.paid_via === 'stripe' ? IV_METHODS.card : IV_METHODS[x.paid_method] || x.paid_method) : x.sent_at ? 'sent ' + ivDay(x.sent_at) + (x.view_count ? ' · opened ' + x.view_count + '×' : ' · not opened yet') : '' }),
+      ]));
+    });
+  }
+  function ivEdit(inv) {
+    IV.ed = { inv: inv, items: (inv.items || []).map(function (it) { return Object.assign({}, it); }) };
+    $('#ivlistwrap').hidden = true; $('#ivnew').hidden = true;
+    var box = $('#ived'); box.hidden = false; box.innerHTML = '';
+    var cfg = IV.data.config, cur = inv.currency || cfg.currency, st = inv.display_status || inv.status;
+    var editable = inv.status === 'new' || inv.status === 'draft' || inv.status === 'open';
+    box.appendChild(h('div', { class: 'row iv-bar' }, [h('button', { class: 'btn btn--ghost btn--sm', type: 'button', text: '← All invoices', onclick: function () { go('invoices'); } })]));
+    box.appendChild(h('div', { class: 'iv-ed__head' }, [
+      h('h3', { text: inv.number ? 'Invoice ' + inv.number : 'New invoice' }),
+      inv.status !== 'new' ? h('span', { class: 'iv-chip iv-chip--' + st, text: IV_STATUS[st] || st }) : null,
+    ]));
+    var facts = [];
+    if (inv.booking && inv.booking.starts_at) facts.push('For the visit on ' + ivDay(inv.booking.starts_at));
+    if (inv.sent_at) facts.push('Sent ' + ivDay(inv.sent_at) + (inv.due_date ? (cfg.dueDays ? ' · due ' + ivDay(inv.due_date) : ' · due on receipt') : ''));
+    if (inv.status === 'open') facts.push(inv.view_count ? 'Opened ' + inv.view_count + '× · last ' + fmtDate(inv.last_viewed_at) : 'Not opened yet');
+    var sentRem = Object.keys(inv.reminders_sent || {});
+    if (sentRem.length) facts.push('Reminded at ' + sentRem.sort(function (a, b) { return a - b; }).join(', ') + ' days late');
+    if (inv.status === 'paid' || inv.status === 'refunded') facts.push('Paid ' + ivDay(inv.paid_at) + ' · ' + (inv.paid_via === 'stripe' ? IV_METHODS.card : IV_METHODS[inv.paid_method] || inv.paid_method) + (inv.paid_reference ? ' (' + inv.paid_reference + ')' : ''));
+    if (inv.status === 'void' && inv.void_reason) facts.push('Voided: ' + inv.void_reason);
+    if (inv.status === 'refunded') facts.push('Refunded ' + fmtDate(inv.refunded_at));
+    if (facts.length) box.appendChild(h('p', { class: 'muted iv-facts', text: facts.join(' · ') }));
+
+    // who it is for
+    var f = function (label, name, type, val, attrs) { var i = h(type === 'select' ? 'select' : 'input', Object.assign({ name: name, disabled: !editable }, type === 'select' ? {} : { type: type, value: val || '' }, attrs || {})); return h('label', { class: 'field' }, [h('span', { text: label }), i]); };
+    var who = h('div', { class: 'grid2 iv-who' }, [
+      f('Name', 'name', 'text', inv.name, { maxlength: 80, required: true }),
+      f('Email (they get the invoice here)', 'email', 'email', inv.email, { maxlength: 120 }),
+      f('Phone', 'phone', 'tel', inv.phone, { maxlength: 24 }),
+      f('Address (optional)', 'address', 'text', inv.address, { maxlength: 200 }),
+    ]);
+    var lang = h('select', { name: 'lang', disabled: !editable }, [h('option', { value: 'en', text: 'English' }), h('option', { value: 'es', text: 'Español' })]); lang.value = inv.lang === 'es' ? 'es' : 'en';
+    who.appendChild(h('label', { class: 'field' }, [h('span', { text: 'Language of the invoice' }), lang]));
+    box.appendChild(who);
+
+    // the lines
+    var lines = h('div', { class: 'iv-lines' });
+    var totals = h('div', { class: 'iv-totals', 'aria-live': 'polite' });
+    var taxIn = h('input', { type: 'number', min: 0, max: 25, step: 0.01, inputmode: 'decimal', value: ((inv.tax_rate || 0) / 100).toString(), disabled: !editable });
+    var credit = inv.credit || 0;
+    function redraw() {
+      lines.innerHTML = '';
+      if (!IV.ed.items.length) lines.appendChild(h('p', { class: 'bk__empty', text: 'No lines yet. Add labor, the parts you used, and any fee.' }));
+      var rate = Math.round(Number(taxIn.value || 0) * 100);
+      IV.ed.items.forEach(function (it, i) {
+        var kind = h('select', { 'aria-label': 'What kind of line', disabled: !editable, onchange: function () { it.kind = kind.value; if (it.kind === 'part') it.taxable = true; if (it.kind !== 'part') it.taxable = false; redraw(); } }, Object.keys(IV_KINDS).map(function (k) { return h('option', { value: k, text: IV_KINDS[k] }); }));
+        kind.value = it.kind;
+        var label = h('input', { type: 'text', value: it.label, maxlength: 120, placeholder: it.kind === 'part' ? 'Which part (brand, number)' : it.kind === 'labor' ? 'Labor' : 'What it is', 'aria-label': 'Description', disabled: !editable, oninput: function () { it.label = label.value; } });
+        var qty = h('input', { type: 'number', min: 0.25, step: it.kind === 'labor' ? 0.25 : 1, inputmode: 'decimal', value: String(it.qty), 'aria-label': it.kind === 'labor' ? 'Hours' : 'How many', disabled: !editable, oninput: function () { it.qty = Math.round(Number(qty.value || 0) * 100) / 100; drawTotals(); amt.textContent = ivMoney(ivLine(it), cur); } });
+        var price = h('input', { type: 'number', min: 0, step: 0.01, inputmode: 'decimal', value: (it.unit / 100).toFixed(2), 'aria-label': it.kind === 'labor' ? 'Rate per hour' : 'Price', disabled: !editable, oninput: function () { it.unit = Math.round(Number(price.value || 0) * 100); drawTotals(); amt.textContent = ivMoney(ivLine(it), cur); } });
+        var amt = h('span', { class: 'iv-line__amt', text: ivMoney(ivLine(it), cur) });
+        var tax = rate > 0 && it.kind !== 'discount' ? h('label', { class: 'iv-line__tax' }, [h('input', { type: 'checkbox', checked: Boolean(it.taxable), disabled: !editable, onchange: function (e) { it.taxable = e.target.checked; drawTotals(); } }), ' taxed']) : null;
+        lines.appendChild(h('div', { class: 'iv-line iv-line--' + it.kind }, [
+          h('div', { class: 'iv-line__top' }, [kind, label]),
+          h('div', { class: 'iv-line__nums' }, [
+            h('label', { class: 'iv-line__q' }, [h('span', { text: it.kind === 'labor' ? 'Hours' : 'Qty' }), qty]),
+            h('label', { class: 'iv-line__p' }, [h('span', { text: it.kind === 'labor' ? 'Per hour $' : 'Price $' }), price]),
+            tax, amt,
+            editable ? h('button', { class: 'icon iv-line__x', type: 'button', 'aria-label': 'Remove this line', text: '×', onclick: function () { IV.ed.items.splice(i, 1); redraw(); } }) : null,
+          ]),
+        ]));
+      });
+      drawTotals();
+    }
+    function drawTotals() {
+      var rate = Math.round(Number(taxIn.value || 0) * 100), t = ivTotals(IV.ed.items, rate, credit);
+      totals.innerHTML = '';
+      var row = function (k, v, cls) { totals.appendChild(h('div', { class: cls || '' }, [h('span', { text: k }), h('span', { text: v })])); };
+      row('Subtotal', ivMoney(t.subtotal, cur), 'muted');
+      if (t.tax) row(cfg.taxLabel + ' (' + (rate / 100) + '%)', ivMoney(t.tax, cur), 'muted');
+      if (credit) row('Deposit paid', '−' + ivMoney(t.credit, cur), 'muted');
+      row(inv.status === 'paid' ? 'Paid' : 'Balance due', ivMoney(inv.status === 'paid' && inv.paid_amount != null ? inv.paid_amount : t.balance, cur), 'iv-totals__due');
+    }
+    box.appendChild(h('h4', { class: 'iv-sub', text: 'What they pay for' }));
+    box.appendChild(lines);
+    if (editable) {
+      var add = function (kind) { return h('button', { class: 'btn btn--ghost btn--sm', type: 'button', text: '+ ' + IV_KINDS[kind], onclick: function () {
+        var words = (cfg.labels || {})[(lang && lang.value) === 'es' ? 'es' : 'en'] || { labor: 'Labor', fee: 'Gas surcharge' };
+        IV.ed.items.push(kind === 'labor' ? { kind: 'labor', label: words.labor, qty: 1, unit: cfg.hourly || 0, taxable: false } : kind === 'fee' ? { kind: 'fee', label: cfg.surcharge && !IV.ed.items.some(function (x) { return x.kind === 'fee'; }) ? words.fee : '', qty: 1, unit: cfg.surcharge && !IV.ed.items.some(function (x) { return x.kind === 'fee'; }) ? cfg.surcharge : 0, taxable: false } : { kind: kind, label: '', qty: 1, unit: 0, taxable: kind === 'part' && cfg.taxRate > 0 });
+        redraw(); var last = $$('.iv-line input[type=text]', lines).pop(); if (last && !last.value) last.focus();
+      } }); };
+      box.appendChild(h('div', { class: 'row iv-add' }, [add('labor'), add('part'), add('fee'), add('discount')]));
+    }
+    box.appendChild(h('label', { class: 'field iv-taxrate' }, [h('span', { text: 'Sales tax on taxed lines, % (0 = none)' }), taxIn]));
+    taxIn.addEventListener('input', redraw);
+    box.appendChild(totals);
+    var notes = h('textarea', { maxlength: 1500, rows: 3, disabled: !editable, placeholder: 'Shown on the invoice: the car, what you found, a warranty note' }); notes.value = inv.notes || '';
+    var priv = h('textarea', { maxlength: 1000, rows: 2, placeholder: 'Only you see this' }); priv.value = inv.owner_note || '';
+    box.appendChild(h('label', { class: 'field' }, [h('span', { text: 'Note to the customer' }), notes]));
+    box.appendChild(h('label', { class: 'field' }, [h('span', { text: 'Private note' }), priv]));
+    redraw();
+
+    // what can be done from here
+    var body = function () {
+      var b = { items: IV.ed.items.map(function (it) { return { kind: it.kind, label: String(it.label || '').trim(), qty: it.qty, unit: it.unit, taxable: Boolean(it.taxable) }; }), tax_rate: Math.round(Number(taxIn.value || 0) * 100), notes: notes.value, owner_note: priv.value, lang: lang.value };
+      $$('input[name]', who).forEach(function (i) { b[i.name] = i.value; });
+      if (inv.booking_id) b.booking_id = inv.booking_id;
+      return b;
+    };
+    var run = async function (el, fn) {
+      el.disabled = true;
+      try { var r = await fn(); toast(r.message || 'Saved.', r.emailed === false ? '' : 'ok', r.sms ? { href: r.sms, label: 'Text ' + (r.invoice ? r.invoice.name : 'them') + ' the link' } : null); await loadInvoiceSummary(); IV.data = await api('GET', '/api/admin/invoices'); if (r.invoice) { history.replaceState(null, '', '/admin/#invoices/' + r.invoice.id); ivEdit(r.invoice); } else go('invoices', { replace: true }); }
+      catch (err) { toast(err.message, 'bad'); el.disabled = false; }
+    };
+    var btn = function (label, cls, fn) { var b = h('button', { class: 'btn btn--sm ' + cls, type: 'button', text: label }); b.addEventListener('click', function () { fn(b); }); return b; };
+    var acts = h('div', { class: 'iv-acts' });
+    var panel = h('div', { class: 'bk__panel', hidden: true });
+    var pending = function () { var t = ivTotals(IV.ed.items, Math.round(Number(taxIn.value || 0) * 100), credit); return ivMoney(t.balance, cur); };
+    if (inv.status === 'new') {
+      acts.appendChild(btn('Send invoice', 'btn--primary', function (el) { if (!confirm('Send ' + pending() + ' to ' + (body().name || 'them') + '?')) return; run(el, function () { return api('POST', '/api/admin/invoices', Object.assign(body(), { send: true })); }); }));
+      acts.appendChild(btn('Save draft', 'btn--ghost', function (el) { run(el, function () { return api('POST', '/api/admin/invoices', body()); }); }));
+    }
+    if (inv.status === 'draft') {
+      acts.appendChild(btn('Send invoice', 'btn--primary', function (el) { if (!confirm('Send ' + pending() + ' to ' + (body().name || 'them') + '?')) return; run(el, function () { return api('PATCH', '/api/admin/invoices/' + inv.id, Object.assign(body(), { action: 'send' })); }); }));
+      acts.appendChild(btn('Save draft', 'btn--ghost', function (el) { run(el, function () { return api('PATCH', '/api/admin/invoices/' + inv.id, Object.assign(body(), { action: 'save' })); }); }));
+      acts.appendChild(btn('Delete draft', 'btn--ghost btn--danger', function (el) { if (confirm('Delete draft ' + inv.number + '?')) run(el, function () { return api('DELETE', '/api/admin/invoices/' + inv.id); }); }));
+    }
+    if (inv.status === 'open') {
+      acts.appendChild(btn('Save changes', 'btn--ghost', function (el) { run(el, function () { return api('PATCH', '/api/admin/invoices/' + inv.id, Object.assign(body(), { action: 'save' })); }); }));
+      acts.appendChild(btn('Send again', 'btn--ghost', function (el) { run(el, function () { return api('PATCH', '/api/admin/invoices/' + inv.id, Object.assign(body(), { action: 'send' })); }); }));
+      acts.appendChild(btn('Paid another way', 'btn--primary', function () {
+        panel.innerHTML = ''; panel.hidden = false;
+        // for the books: how, a reference (check number, Cash App note) and the day the money came in
+        var how = h('select', { required: true }, [h('option', { value: '', text: 'Pick one…', disabled: true, selected: true })].concat(IV.data.config.methods.map(function (m) { return h('option', { value: m, text: IV_METHODS[m] || m }); })));
+        var today = new Intl.DateTimeFormat('en-CA').format(new Date());
+        var ref = h('input', { type: 'text', maxlength: 120, placeholder: 'Pick how they paid first', autocomplete: 'off' });
+        var when = h('input', { type: 'date', value: today, max: today });
+        var receipt = h('input', { type: 'checkbox', checked: Boolean(inv.email) });
+        how.addEventListener('change', function () { ref.placeholder = IV_REF_HINT[how.value] || 'Optional'; });
+        panel.appendChild(h('label', { class: 'field' }, [h('span', { text: 'How did ' + inv.name + ' pay ' + ivMoney(inv.balance, cur) + '?' }), how]));
+        panel.appendChild(h('div', { class: 'iv-paidrow' }, [
+          h('label', { class: 'field' }, [h('span', { text: 'Reference (for your books)' }), ref]),
+          h('label', { class: 'field' }, [h('span', { text: 'Money came in on' }), when]),
+        ]));
+        if (inv.email) panel.appendChild(h('label', { class: 'check' }, [receipt, ' Email them a receipt']));
+        panel.appendChild(h('div', { class: 'row' }, [btn('Mark paid', 'btn--primary', function (el) {
+          if (!how.value) { toast('Pick how they paid.', 'bad'); how.focus(); return; }
+          if (how.value === 'check' && !ref.value.trim() && !confirm('No check number? Mark it paid anyway.')) { ref.focus(); return; }
+          run(el, function () { return api('PATCH', '/api/admin/invoices/' + inv.id, { action: 'mark_paid', method: how.value, reference: ref.value, paid_on: when.value, receipt: receipt.checked }); });
+        }), btn('Close', 'btn--ghost', function () { panel.hidden = true; })]));
+      }));
+      acts.appendChild(btn('Void', 'btn--ghost btn--danger', function () {
+        panel.innerHTML = ''; panel.hidden = false;
+        var reason = h('input', { type: 'text', maxlength: 300, placeholder: 'Why (only you see it)' });
+        panel.appendChild(h('label', { class: 'field' }, [h('span', { text: 'Void ' + inv.number + '? The link will say nothing is owed.' }), reason]));
+        panel.appendChild(h('div', { class: 'row' }, [btn('Void it', 'btn--primary btn--danger', function (el) { run(el, function () { return api('PATCH', '/api/admin/invoices/' + inv.id, { action: 'void', reason: reason.value }); }); }), btn('Keep it', 'btn--ghost', function () { panel.hidden = true; })]));
+      }));
+    }
+    if (inv.status === 'paid' && inv.paid_via === 'stripe') acts.appendChild(btn('Refund ' + ivMoney(inv.paid_amount, cur), 'btn--ghost btn--danger', function (el) { if (confirm('Give ' + ivMoney(inv.paid_amount, cur) + ' back to ' + inv.name + '\'s card? They are emailed.')) run(el, function () { return api('PATCH', '/api/admin/invoices/' + inv.id, { action: 'refund' }); }); }));
+    if (inv.status !== 'new' && inv.status !== 'draft' && inv.status !== 'open') acts.appendChild(btn('Save private note', 'btn--ghost', function (el) { run(el, function () { return api('PATCH', '/api/admin/invoices/' + inv.id, { action: 'note', owner_note: priv.value }); }); }));
+    if (inv.url) {
+      var digits = String(inv.phone || '').replace(/[^\d+]/g, '');
+      acts.appendChild(h('a', { class: 'btn btn--ghost btn--sm', href: inv.url, target: '_blank', rel: 'noopener', text: 'See what they see ↗' }));
+      acts.appendChild(btn('Copy link', 'btn--ghost', function () { (navigator.clipboard ? navigator.clipboard.writeText(inv.url) : Promise.reject()).then(function () { toast('Link copied.', 'ok'); }, function () { prompt('Copy the link:', inv.url); }); }));
+      if (digits && inv.status === 'open') acts.appendChild(h('a', { class: 'btn btn--ghost btn--sm', href: 'sms:' + digits + '?&body=' + encodeURIComponent('Hi ' + inv.name + ', here is your invoice ' + inv.number + ' (' + ivMoney(inv.balance, cur) + '): ' + inv.url), text: '💬 Text the link' }));
+    }
+    box.appendChild(acts);
+    box.appendChild(panel);
+    window.scrollTo(0, 0);
+  }
+  if (ivPanel) $('#ivnew').addEventListener('click', function () { go('invoices/new'); });
+
   // ------------------------------------------------------------ bookings --
   // The Bookings tab (config.booking): requested inbox, confirmed by day,
   // past, declined. Every button is one tap; the customer is emailed by the
@@ -1168,6 +1416,12 @@
         : dep === 'refunded' ? 'Deposit ' + amt + ' refunded' : 'Deposit ' + amt + ' kept';
       chips.push(h('span', { class: 'bk__chip ' + (dep === 'paid' ? 'bk__chip--ok' : overdue ? 'bk__chip--warn' : ''), text: label }));
     }
+    // its invoice, if one is made: tap to open it
+    var invs = (d.invoices || []).filter(function (x) { return x.booking_id === b.id; });
+    invs.forEach(function (x) {
+      var label = x.status === 'paid' ? 'Invoice ' + x.number + ' paid' : x.status === 'draft' ? 'Invoice ' + x.number + ' draft' : x.status === 'refunded' ? 'Invoice ' + x.number + ' refunded' : 'Invoice ' + x.number + ' · ' + ivMoney(x.balance, x.currency) + ' due';
+      chips.push(h('button', { type: 'button', class: 'bk__chip bk__chip--link ' + (x.status === 'paid' ? 'bk__chip--ok' : x.status === 'open' ? 'bk__chip--warn' : ''), text: label, onclick: function () { go('invoices/' + x.id); } }));
+    });
     if (chips.length) card.appendChild(h('div', { class: 'bk__chips' }, chips));
     var meta = h('dl', { class: 'bk__meta' });
     var row = function (k, v) { if (!v) return; meta.appendChild(h('dt', { text: k })); meta.appendChild(h('dd', { text: v })); };
@@ -1231,6 +1485,8 @@
       actions.appendChild(btn('Cancel', 'btn--ghost btn--danger', function () { openPanel('cancel'); }));
       actions.appendChild(h('a', { class: 'btn btn--ghost btn--sm', href: '/api/admin/bookings/' + b.id + '.ics', text: '.ics' }));
     }
+    // bill the job: prefilled with labor, the gas surcharge and the paid deposit
+    if (d.invoices && (b.status === 'confirmed' || b.status === 'completed') && !invs.some(function (x) { return x.status !== 'void' && x.status !== 'refunded'; })) actions.appendChild(btn('Make invoice', b.status === 'completed' ? 'btn--primary' : 'btn--ghost', function () { go('invoices/b-' + b.id); }));
     actions.appendChild(btn(b.owner_note ? 'Edit note' : 'Note', 'btn--ghost', function () { openPanel('note'); }));
     // the deposit by hand: paid some other way, or a goodwill refund (Stripe only)
     if (dep === 'due' && (b.status === 'confirmed' || b.status === 'completed')) actions.appendChild(btn('Deposit paid in person', 'btn--ghost', function (e) { if (confirm('Mark the ' + bkMoney(b.deposit_amount, b.deposit_currency) + ' deposit as paid outside the site (cash, Zelle…)?')) act('deposit_paid', {}, e.target); }));

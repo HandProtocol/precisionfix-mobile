@@ -45,6 +45,11 @@ const T = {
     received_title: 'Request received',
     received_body: (n) => `Thanks, ${n}. Here is what you asked for. Nothing is booked yet: you will hear back to confirm.`,
     manage: 'Cancel or ask for another time',
+    // the link again ("email me my link" / "find my booking" on the site)
+    link_subject: (w) => `Your booking link: ${w}`,
+    link_title: 'Your booking',
+    link_body: (n) => `${n}, here is the link to your request, as asked on our website. If that was not you, you can ignore this email.`,
+    link_open: 'See your booking',
     confirmed_subject: (w) => `Confirmed: ${w}`,
     confirmed_title: 'You are booked',
     confirmed_body: (n) => `${n}, your visit is confirmed. A calendar file is attached so it lands on your phone.`,
@@ -85,6 +90,9 @@ const T = {
     sms_cancelled: (w) => `Your booking for ${w} is cancelled.`,
     // the deposit
     dep_lock_title: 'Lock it in',
+    dep_remind_subject: (amt) => `Your time is still held: pay the ${amt} deposit`,
+    dep_remind_title: 'Still holding your time',
+    dep_remind_body: (n, w) => `${n}, your visit (${w}) is confirmed and held for you. Pay the deposit below to lock it in.`,
     dep_lock_body: (amt, until) => `Pay the ${amt} deposit to hold this time. It is held for you until ${until}.`,
     dep_terms: (amt, credited) => `The ${amt} ${credited ? 'comes off your bill' : 'is a booking fee'}. It is refunded in full if we have to cancel; if you cancel or miss the visit, it is kept.`,
     dep_pay: (amt) => `Pay the ${amt} deposit`,
@@ -115,6 +123,10 @@ const T = {
     received_title: 'Solicitud recibida',
     received_body: (n) => `Gracias, ${n}. Esto es lo que pediste. Todavía no está reservado: te confirmamos pronto.`,
     manage: 'Cancelar o pedir otra hora',
+    link_subject: (w) => `El enlace de tu reserva: ${w}`,
+    link_title: 'Tu reserva',
+    link_body: (n) => `${n}, aquí está el enlace a tu solicitud, como lo pediste en nuestra página. Si no fuiste tú, puedes ignorar este correo.`,
+    link_open: 'Ver tu reserva',
     confirmed_subject: (w) => `Confirmado: ${w}`,
     confirmed_title: 'Tu visita está confirmada',
     confirmed_body: (n) => `${n}, tu visita está confirmada. Va un archivo de calendario para que quede en tu teléfono.`,
@@ -153,6 +165,9 @@ const T = {
     sms_declined: (w) => `Lo sentimos, no podemos tomar tu solicitud para ${w}.`,
     sms_cancelled: (w) => `Tu reserva para ${w} quedó cancelada.`,
     dep_lock_title: 'Asegura tu hora',
+    dep_remind_subject: (amt) => `Seguimos apartando tu hora: paga el depósito de ${amt}`,
+    dep_remind_title: 'Seguimos apartando tu hora',
+    dep_remind_body: (n, w) => `${n}, tu visita (${w}) está confirmada y apartada. Paga el depósito abajo para asegurarla.`,
     dep_lock_body: (amt, until) => `Paga el depósito de ${amt} para apartar esta hora. Te la guardamos hasta ${until}.`,
     dep_terms: (amt, credited) => `Los ${amt} ${credited ? 'se descuentan de tu cuenta' : 'son una cuota de reserva'}. Se reembolsan completos si nosotros tenemos que cancelar; si tú cancelas o no estás para la visita, no se reembolsan.`,
     dep_pay: (amt) => `Pagar el depósito de ${amt}`,
@@ -362,6 +377,15 @@ export function customerReceivedEmail({ booking: b, manageUrl, confirmWithin = '
   return { subject: s.received_subject(b.name), html, text: textOf(rows, s.received_title, s.received_body(b.name), confirmWithin, `${s.manage}: ${manageUrl}`) };
 }
 
+// The booking's link again, for whoever holds the email it was made with
+// ("email me my link again" on the sent screen, "find my booking").
+export function customerLinkEmail({ booking: b, manageUrl, intake = [], settings = null }) {
+  const lang = b.lang, s = t(lang);
+  const rows = bookingRows(b, { lang, intake, settings });
+  const html = shell(`${h1(s.link_title)}${para(s.link_body(b.name))}${table(rows)}<p style="margin:22px 0 0;">${button(manageUrl, s.link_open)}</p>`, { pre: s.link_body(b.name), settings, lang });
+  return { subject: s.link_subject(whenText(b, lang, settings)), html, text: textOf(rows, s.link_title, s.link_body(b.name), '', `${s.link_open}: ${manageUrl}`) };
+}
+
 export function customerConfirmedEmail({ booking: b, manageUrl, expect = '', intake = [], settings = null, ics = '', proposed = false, askedFor = '', payUrl = '' }) {
   const lang = b.lang, s = t(lang);
   const rows = bookingRows(b, { lang, intake, settings });
@@ -426,6 +450,17 @@ export function customerCancelledEmail({ booking: b, bookUrl, reason = '', intak
   const money = depositNote(b, lang);
   const html = shell(`${h1(s.cancelled_title)}${para(s.cancelled_body(b.name))}${why ? para(`${s.reason}: ${why}`) : ''}${money ? para(money) : ''}${table(rows)}<p style="margin:22px 0 0;">${button(bookUrl, s.book_again)}</p>`, { pre: s.cancelled_body(b.name), settings, lang });
   return { subject: s.cancelled_subject, html, text: textOf(rows, s.cancelled_title, s.cancelled_body(b.name), why ? `${s.reason}: ${why}` : '', money, `${s.book_again}: ${bookUrl}`) };
+}
+
+// The customer's own nudge halfway through the hold while the deposit is
+// still due (booking-reminders.mjs): the same Lock-it-in block, once.
+export function customerDepositReminderEmail({ booking: b, manageUrl, payUrl, intake = [], settings = null }) {
+  const lang = b.lang, s = t(lang), amt = depositAmt(b, lang);
+  const rows = bookingRows(b, { lang, intake, settings });
+  const body = s.dep_remind_body(b.name, whenText(b, lang, settings));
+  const dep = depositBlock(b, lang, payUrl);
+  const html = shell(`${h1(s.dep_remind_title)}${para(body)}${dep.html}${table(rows)}<p style="margin:22px 0 0;">${button(manageUrl, s.manage, { ghost: true })}</p>`, { pre: body, settings, lang });
+  return { subject: s.dep_remind_subject(amt), html, text: textOf(rows, s.dep_remind_title, body, dep.text, `${s.manage}: ${manageUrl}`) };
 }
 
 // `soon`: the about-2-hours-before reminder; otherwise the day-before one.
@@ -517,7 +552,7 @@ function customerEmailState(b) {
 }
 const customerOk = (b) => customerEmailState(b) === 'ok';
 
-// kind: owner_new | owner_cancelled | received | confirmed | proposed | declined | cancelled | reminder
+// kind: owner_new | owner_cancelled | received | link | confirmed | proposed | declined | cancelled | reminder
 export async function sendBookingEmail(kind, ctx) {
   const b = ctx.booking;
   const origin = ctx.origin || config.productionUrl;
@@ -545,15 +580,21 @@ export async function sendBookingEmail(kind, ctx) {
   if (state !== 'ok') return { ok: false, reason: state === 'none' ? 'no-customer-email' : 'bad-customer-email' };
   const mail =
     kind === 'received' ? customerReceivedEmail(ctx)
+    : kind === 'link' ? customerLinkEmail(ctx)
     : kind === 'confirmed' ? customerConfirmedEmail({ ...ctx, ics: ctx.ics === undefined ? bookingIcsFile(b, { origin, intake: ctx.intake, settings: ctx.settings }) : ctx.ics })
     : kind === 'proposed' ? customerConfirmedEmail({ ...ctx, proposed: true, ics: ctx.ics === undefined ? bookingIcsFile(b, { origin, intake: ctx.intake, settings: ctx.settings }) : ctx.ics })
     : kind === 'declined' ? customerDeclinedEmail({ ...ctx, bookUrl })
     : kind === 'cancelled' ? customerCancelledEmail({ ...ctx, bookUrl })
     : kind === 'reminder' ? customerReminderEmail(ctx)
     : kind === 'deposit_paid' ? customerDepositPaidEmail(ctx)
+    : kind === 'deposit_reminder' ? customerDepositReminderEmail(ctx)
     : kind === 'deposit_refunded' ? customerDepositRefundedEmail(ctx)
     : null;
   if (!mail) return { ok: false, reason: 'unknown-kind' };
   const { attachments, ...rest } = mail;
   return sendEmail({ to: [b.email.toLowerCase()], ...rest, ...(attachments && attachments.length ? { attachments } : {}) });
 }
+
+// The pieces the invoice mails are built from (lib/invoice-email.mjs), so
+// every mail the site sends wears the same card, rows and buttons.
+export const mailParts = { shell, table, button, para, h1, tiny, textOf, link, ownerLinkRows, words: t };

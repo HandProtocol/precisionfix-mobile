@@ -107,33 +107,43 @@ function call(method, path, body = null, opts = {}) {
 }
 
 // One hosted payment page. `expiresAt` (unix seconds, 30 min … 24 h ahead)
-// makes the page itself expire with the hold.
-export function createCheckoutSession({ amount, currency, name, description = '', bookingId, customerEmail = '', successUrl, cancelUrl, expiresAt = null, idempotencyKey = '' }) {
+// makes the page itself expire with the hold. `bookingId` (the deposit) or
+// `reference` + `metadata` (an invoice: { invoice_id }) say what it pays for;
+// the webhook reads them back.
+export function createCheckoutSession({ amount, currency, name, description = '', bookingId = '', reference = '', metadata = null, customerEmail = '', successUrl, cancelUrl, expiresAt = null, idempotencyKey = '' }) {
+  const meta = metadata || { booking_id: bookingId };
   return call(
     'POST',
     '/checkout/sessions',
     {
       mode: 'payment',
-      client_reference_id: bookingId,
+      client_reference_id: reference || bookingId,
       customer_email: customerEmail || undefined,
       success_url: successUrl,
       cancel_url: cancelUrl,
       expires_at: expiresAt || undefined,
       line_items: [{ quantity: 1, price_data: { currency, unit_amount: amount, product_data: { name, description: description || undefined } } }],
-      metadata: { booking_id: bookingId },
-      payment_intent_data: { metadata: { booking_id: bookingId }, description: name },
+      metadata: meta,
+      payment_intent_data: { metadata: meta, description: name },
     },
     { idempotencyKey }
   );
+}
+
+// Closes a page nobody should pay any more (an invoice edited or voided).
+// A 400 means it already closed or was paid.
+export function expireCheckoutSession(id) {
+  return call('POST', `/checkout/sessions/${encodeURIComponent(id)}/expire`);
 }
 
 export function getCheckoutSession(id) {
   return call('GET', `/checkout/sessions/${encodeURIComponent(id)}`);
 }
 
-// A full refund of a payment. Idempotent per booking.
-export function refundPaymentIntent(paymentIntent, { bookingId = '', reason = 'requested_by_customer' } = {}) {
-  return call('POST', '/refunds', { payment_intent: paymentIntent, reason, metadata: { booking_id: bookingId } }, { idempotencyKey: bookingId ? `refund-${bookingId}` : '' });
+// A full refund of a payment. Idempotent per booking (or per `key`, an invoice).
+export function refundPaymentIntent(paymentIntent, { bookingId = '', reason = 'requested_by_customer', metadata = null, key = '' } = {}) {
+  const k = key || (bookingId ? `refund-${bookingId}` : '');
+  return call('POST', '/refunds', { payment_intent: paymentIntent, reason, metadata: metadata || { booking_id: bookingId } }, { idempotencyKey: k });
 }
 
 // Stripe-Signature: t=<unix>,v1=<hmac>[,v1=…]. HMAC-SHA256 over "<t>.<raw body>".

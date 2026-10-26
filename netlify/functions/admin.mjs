@@ -18,6 +18,7 @@
 //   *      /api/admin/bookings…                 the booking calendar (lib/booking-admin.mjs)
 //   *      /api/admin/payments…                 connect the owner's Stripe (lib/payments.mjs)
 //   *      /api/admin/questions…                customers asking before they book (lib/questions-admin.mjs)
+//   *      /api/admin/invoices…                 bill a job, the customer pays the balance through Stripe (lib/invoices-admin.mjs)
 //
 // Every successful write purges the CDN cache for the home page.
 
@@ -30,6 +31,7 @@ import { handleError, json, readJson, requireEditor, sameOrigin } from './lib/ht
 import { adminBookings } from './lib/booking-admin.mjs';
 import { adminPayments } from './lib/payments.mjs';
 import { adminQuestions } from './lib/questions-admin.mjs';
+import { adminInvoices } from './lib/invoices-admin.mjs';
 import { loadStripeKeys } from './lib/stripe.mjs';
 
 const ALLOWED_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif', 'image/gif': 'gif' };
@@ -295,6 +297,7 @@ export default async (req) => {
 
     if (head === 'payments') return await adminPayments(req, editor, parts.slice(1));
     if (head === 'questions') return await adminQuestions(req, editor, parts.slice(1));
+    if (head === 'invoices') return await adminInvoices(req, editor, parts.slice(1), url);
 
     if (head === 'site' && m === 'GET') {
       const site = await loadSite();

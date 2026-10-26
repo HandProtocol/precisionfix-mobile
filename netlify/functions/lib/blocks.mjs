@@ -43,46 +43,69 @@ export function fontLinks(fonts) {
 
 // --- head ------------------------------------------------------------------
 
-// Everything inside <head> except the renderer's own extras. `origin` is the
-// request origin (canonical + og:url); falls back to config.productionUrl.
-// `theme` / `fonts` override config's for this render (runtime theme pick);
-// `content.seo.google_verification`, when the pack has that field, becomes
-// the Search Console meta tag so the owner verifies from the editor.
+// The address search engines should credit: always config.productionUrl, so
+// the *.netlify.app alias, a deploy preview or a local preview never names
+// itself as the page to index. Asset URLs keep using the request origin.
+// (Ported by hand from clients/_template: this site is never engine-synced.)
+export function canonicalBase() {
+  return config.productionUrl;
+}
+
+// The link-preview image: a 1200×630 JPEG cut from the featured photo by the
+// Image CDN (WEBP previews do not show in several apps). SVGs and static
+// previews (no CDN) fall back to the photo itself, without dimensions.
+export function shareImage(featured, base = canonicalBase()) {
+  if (!featured) return null;
+  if (!featured.srcset || !featured.original) return { url: new URL(featured.full, base).href, width: null, height: null, alt: featured.alt || '' };
+  const q = `url=${encodeURIComponent(featured.original)}&w=1200&h=630&fit=cover&fm=jpg&q=80`;
+  return { url: new URL(`/.netlify/images?${q}`, base).href, width: 1200, height: 630, alt: featured.alt || '' };
+}
+
+const VERIFY_RE = /^[A-Za-z0-9_-]{10,120}$/;
+
+// Everything inside <head> except the renderer's own extras. The canonical
+// and og:url are always on productionUrl; `origin` stays in the signature
+// for callers. `theme` / `fonts` override config's for this render (runtime
+// theme pick). `content.seo.google_verification` / `bing_verification`
+// become the Search Console / Bing meta tags so the owner verifies from the
+// editor. A tag the caller already passes in `extra` is not emitted twice.
 export function headTags({ content, featured, origin = '', title, description, extra = '', theme, fonts }) {
-  const base = origin || config.productionUrl;
-  const t = title || (content.seo && content.seo.title) || (content.brand && content.brand.name) || siteName();
-  const d = description || (content.seo && content.seo.description) || '';
-  const ogImage = featured ? new URL(featured.full, base).href : '';
-  const gsv = String((content.seo && content.seo.google_verification) || '').trim();
-  const verification = /^[A-Za-z0-9_-]{10,120}$/.test(gsv) ? `<meta name="google-site-verification" content="${e(gsv)}">\n` : '';
+  const seo = content.seo || {};
+  const url = `${canonicalBase()}/`;
+  const t = title || seo.title || (content.brand && content.brand.name) || siteName();
+  const d = description || seo.description || '';
+  const img = shareImage(featured);
+  const has = (attr, key) => new RegExp(`${attr}=["']${key.replace(/[.:]/g, '\\$&')}["']`).test(extra);
+  const meta = (attr, key, value) => (value === '' || value == null || has(attr, key) ? '' : `<meta ${attr}="${key}" content="${e(value)}">\n`);
+  const gsv = String(seo.google_verification || '').trim();
+  const bsv = String(seo.bing_verification || '').trim();
   const bg = (theme && theme.bg) || config.theme.bg;
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${e(t)}</title>
-<meta name="description" content="${e(d)}">
-<link rel="canonical" href="${e(base)}/">
-<meta property="og:title" content="${e(t)}">
-<meta property="og:description" content="${e(d)}">
-<meta property="og:type" content="website">
-<meta property="og:url" content="${e(base)}/">
-${ogImage ? `<meta property="og:image" content="${e(ogImage)}">` : ''}
-<meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="${e(bg)}">
-${verification}<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+${meta('name', 'description', d)}<link rel="canonical" href="${e(url)}">
+${meta('property', 'og:title', t)}${meta('property', 'og:description', d)}${meta('property', 'og:type', 'website')}${meta('property', 'og:url', url)}${meta('property', 'og:site_name', (content.brand && content.brand.name) || siteName())}${img ? meta('property', 'og:image', img.url) + meta('property', 'og:image:width', img.width) + meta('property', 'og:image:height', img.height) + meta('property', 'og:image:alt', img.alt) : ''}<meta name="twitter:card" content="summary_large_image">
+${meta('name', 'twitter:title', t)}${meta('name', 'twitter:description', d)}${img ? meta('name', 'twitter:image', img.url) : ''}<meta name="theme-color" content="${e(bg)}">
+${VERIFY_RE.test(gsv) ? `<meta name="google-site-verification" content="${e(gsv)}">\n` : ''}${VERIFY_RE.test(bsv) ? `<meta name="msvalidate.01" content="${e(bsv)}">\n` : ''}<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 ${fontLinks(fonts)}
 ${themeStyle(theme, fonts)}
 <link rel="stylesheet" href="/assets/site.css?v=${e(config.assetVersion)}">
 ${extra}`;
 }
 
+// The business and the site as one JSON-LD @graph: a WebSite node (Google
+// takes the site name shown above results from it) and the business with a
+// stable @id. `overrides` are applied last to the business node, so the
+// pack's keys win. URLs use productionUrl; `origin` stays for callers.
 export function jsonLd(content, origin, featured, overrides = {}) {
-  const base = origin || config.productionUrl;
+  const base = canonicalBase();
   const c = content.contact || {};
-  const data = {
-    '@context': 'https://schema.org',
+  const name = (content.brand && content.brand.name) || siteName();
+  const business = {
     '@type': 'LocalBusiness',
-    name: content.brand && content.brand.name,
-    description: content.seo && content.seo.description,
+    '@id': `${base}/#business`,
+    name,
+    description: (content.seo && content.seo.description) || undefined,
     url: `${base}/`,
     telephone: c.phone || undefined,
     email: c.email || undefined,
@@ -90,7 +113,8 @@ export function jsonLd(content, origin, featured, overrides = {}) {
     sameAs: instagramUrl(c.instagram) || undefined,
     ...overrides,
   };
-  return `<script type="application/ld+json">${jsonForScript(data)}</script>`;
+  const website = { '@type': 'WebSite', '@id': `${base}/#website`, name, url: `${base}/`, publisher: { '@id': `${base}/#business` } };
+  return `<script type="application/ld+json">${jsonForScript({ '@context': 'https://schema.org', '@graph': [website, business] })}</script>`;
 }
 
 // --- calls to action -------------------------------------------------------

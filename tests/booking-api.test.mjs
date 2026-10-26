@@ -89,7 +89,7 @@ test('bookingBlock renders the four steps, fallbacks, intake, location, config j
   assert.match(one, /<input type="hidden" name="service" value="visit">/);
   assert.equal(one.includes('data-step="service"'), false);
   assert.match(one, /<span class="form__step">01<\/span><span data-es="Día">Day<\/span>/);
-  assert.match(html, /href="tel:5125550100">\(512\) 555-0100</);
+  assert.match(html, /href="tel:\+15125550100">\(512\) 555-0100</);
   assert.match(html, /<script id="booking-config" type="application\/json">\{"tz":"America\/Chicago","today":"2026-09-16","last":"2026-10-16","mode":"windows"/);
   assert.match(html, /<script src="\/booking\/booking\.js\?v=/);
   assert.equal(html.includes('${'), false);
@@ -281,7 +281,7 @@ function fakeBackend({ rows = [], mail = null } = {}) {
   const realFetch = globalThis.fetch;
   // beforePatch: a hook run just before a PATCH lands (to stage a race)
   const customers = [];
-  const api = { calls, rows, customers, beforePatch: null, restore() { globalThis.fetch = realFetch; for (const k of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY', 'EMAIL_FROM']) delete process.env[k]; } };
+  const api = { calls, rows, customers, hits: {}, beforePatch: null, restore() { globalThis.fetch = realFetch; for (const k of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'RESEND_API_KEY', 'EMAIL_FROM']) delete process.env[k]; } };
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     if (u.startsWith('https://api.resend.com/')) {
@@ -294,6 +294,14 @@ function fakeBackend({ rows = [], mail = null } = {}) {
     }
     const path = u.replace(/^https:\/\/db\.test\/rest\/v1/, '');
     calls.sb.push({ method: init.method || 'GET', path, body: init.body ? JSON.parse(init.body) : undefined });
+    // command.rate_take (migration 057), without the time window: tests are short
+    if (path === '/rpc/rate_take') {
+      const b = JSON.parse(init.body), k = `${b.p_bucket}|${b.p_key}`;
+      const n = api.hits[k] || 0;
+      const ok = n < b.p_limit;
+      if (ok) api.hits[k] = n + 1;
+      return { ok: true, status: 200, json: async () => ok };
+    }
     const table = config.tables;
     if (path.startsWith(`/${table.content}`)) return { ok: true, status: 200, json: async () => [] };
     if (path.startsWith(`/${table.media}`)) return { ok: true, status: 200, json: async () => [] };
@@ -462,7 +470,7 @@ test('POST /api/booking mails the owner first and alone, retries it, and reports
     assert.equal(be.calls.mail.length, 2, 'nothing sent to name@gmail..com');
     // a good address: the customer mail starts only after the owner mail finished
     be.calls.mail.length = 0; be.calls.events.length = 0;
-    const res2 = await handler(req('/api/booking', { method: 'POST', body: { ...body, email: 'ana@handprotocol.org' } }));
+    const res2 = await handler(req('/api/booking', { method: 'POST', body: { ...body, phone: '512-555-0103', email: 'ana@handprotocol.org' } }));
     const data2 = await res2.json();
     assert.equal(data2.emailed, false, 'the customer mail answered 500');
     assert.deepEqual(be.calls.events, ['start:owner@handprotocol.org', 'end:owner@handprotocol.org', 'start:ana@handprotocol.org', 'end:ana@handprotocol.org']);
@@ -615,4 +623,118 @@ test('booking.js: a saved draft or request counts as fresh inside its window onl
   assert.equal(H.isFresh({ ts: 9000 }, 2000, 5000), false, 'a clock from the future is not trusted');
   assert.equal(H.isFresh(null, 2000, 5000), false);
   assert.equal(H.isFresh({}, 2000, 5000), false);
+});
+
+// --- spam rails + finding a booking (lib/booking-guard.mjs) ---------------------------
+
+async function goodBody(over = {}) {
+  const content = DEFAULT_CONTENT;
+  const days = (await (await handler(req('/api/booking/days'))).json()).days;
+  const intake = {};
+  for (const f of intakeFor(content)) intake[f.key] = f.type === 'select' ? f.options[0].value : f.pattern ? '2019' : 'x';
+  return { lang: 'en', service: servicesFor(content)[0].key, date: days[0].date, slot: days[0].times[0].id, name: 'Ana', phone: '512-555-0104', email: 'ana@handprotocol.org', contact_pref: 'text', address: '1 Test St', city: citiesFor(content)[0] || '', notes: 'x', ...intake, ...over };
+}
+
+test('POST /api/booking: the same email or phone with a request ahead gets its link again, not a second row; "send it anyway" stores it', { skip: !BOOKING && 'no calendar on this site' }, async () => {
+  const be = fakeBackend();
+  process.env[`${config.envPrefix}_BOOKING_NOTIFY`] = 'owner@handprotocol.org';
+  try {
+    const body = await goodBody();
+    const first = await (await handler(req('/api/booking', { method: 'POST', body }))).json();
+    assert.equal(first.ok, true);
+    assert.equal(be.rows.length, 1);
+    be.calls.mail.length = 0;
+    // same phone, a different email: still the same person
+    const again = await handler(req('/api/booking', { method: 'POST', body: { ...body, email: 'other@handprotocol.org' } }));
+    const data = await again.json();
+    assert.equal(again.status, 200);
+    assert.equal(data.already, true);
+    assert.equal(data.emailed, true);
+    assert.equal(be.rows.length, 1, 'nothing stored');
+    assert.deepEqual(be.calls.mail.map((m) => m.to[0]), ['ana@handprotocol.org'], 'the link goes to the address on the booking, never the one just typed; the owner is not mailed');
+    assert.match(be.calls.mail[0].html, /booking\/manage\?t=/);
+    assert.equal(/Brake|Morning|Mañana/.test(data.message), false, 'the answer names no time or service');
+    // a second try minutes later: no second mail
+    const third = await (await handler(req('/api/booking', { method: 'POST', body }))).json();
+    assert.equal(third.already, true);
+    assert.equal(third.emailed, false);
+    // a second car: stored
+    const anyway = await (await handler(req('/api/booking', { method: 'POST', body: { ...body, another: '1' } }))).json();
+    assert.equal(anyway.ok, true);
+    assert.ok(anyway.manage_url);
+    assert.equal(be.rows.length, 2);
+    // a cancelled request does not count
+    for (const r of be.rows) r.status = 'cancelled';
+    const fresh = await (await handler(req('/api/booking', { method: 'POST', body }))).json();
+    assert.ok(fresh.manage_url, 'stored after the earlier ones were cancelled');
+  } finally { delete process.env[`${config.envPrefix}_BOOKING_NOTIFY`]; be.restore(); }
+});
+
+test('POST /api/booking: three requests a day per person, then a 429 that says to call', { skip: !BOOKING && 'no calendar on this site' }, async () => {
+  const be = fakeBackend();
+  try {
+    const body = await goodBody({ another: '1' });
+    for (let i = 0; i < 3; i++) assert.equal((await handler(req('/api/booking', { method: 'POST', body }))).status, 200);
+    const res = await handler(req('/api/booking', { method: 'POST', body }));
+    assert.equal(res.status, 429);
+    assert.match((await res.json()).error, /call or text/);
+    assert.equal(be.rows.length, 3);
+    // the site-wide cap is its own counter
+    assert.ok(Object.keys(be.hits).some((k) => k.startsWith(`${config.slug}:booking:site|`)));
+  } finally { be.restore(); }
+});
+
+test('POST /api/booking/manage action=link: the request link by email, once per few minutes; a request without email says keep the page', { skip: !BOOKING && 'no calendar on this site' }, async () => {
+  const be = fakeBackend();
+  try {
+    const sent = await (await handler(req('/api/booking', { method: 'POST', body: await goodBody() }))).json();
+    const token = /t=([^&]+)/.exec(sent.manage_url)[1];
+    be.calls.mail.length = 0;
+    const one = await handler(req(`/api/booking/manage?t=${token}`, { method: 'POST', body: { action: 'link' } }));
+    assert.deepEqual(await one.json(), { ok: true, emailed: true });
+    assert.equal(be.calls.mail.length, 1);
+    assert.match(be.calls.mail[0].subject, /Your booking link/);
+    const two = await handler(req(`/api/booking/manage?t=${token}`, { method: 'POST', body: { action: 'link' } }));
+    assert.equal(two.status, 429);
+    assert.equal(be.calls.mail.length, 1);
+    be.rows[0].email = '';
+    assert.equal((await handler(req(`/api/booking/manage?t=${token}`, { method: 'POST', body: { action: 'link' } }))).status, 409);
+  } finally { be.restore(); }
+});
+
+test('POST /api/booking/find: the links go to the email, the answer is the same either way, capped, same-origin only', { skip: !BOOKING && 'no calendar on this site' }, async () => {
+  const be = fakeBackend();
+  try {
+    await handler(req('/api/booking', { method: 'POST', body: await goodBody({ email: 'Ana@HandProtocol.org' }) }));
+    be.calls.mail.length = 0;
+    const none = await (await handler(req('/api/booking/find', { method: 'POST', body: { email: 'nobody@handprotocol.org' } }))).json();
+    assert.equal(be.calls.mail.length, 0);
+    const mine = await (await handler(req('/api/booking/find', { method: 'POST', body: { email: ' ana@handprotocol.org ' } }))).json();
+    assert.equal(none.message, mine.message, 'nothing tells who has booked');
+    assert.deepEqual(be.calls.mail.map((m) => m.to[0]), ['ana@handprotocol.org']);
+    assert.equal((await handler(req('/api/booking/find', { method: 'POST', body: { email: 'nope' } }))).status, 400);
+    assert.equal((await handler(req('/api/booking/find', { method: 'POST', body: { email: 'ana@handprotocol.org' }, headers: { origin: 'https://evil.test' } }))).status, 403);
+    // two finds per email an hour (the third answers 429)
+    assert.equal((await handler(req('/api/booking/find', { method: 'POST', body: { email: 'ana@handprotocol.org' } }))).status, 200);
+    assert.equal((await handler(req('/api/booking/find', { method: 'POST', body: { email: 'ana@handprotocol.org' } }))).status, 429);
+  } finally { be.restore(); }
+});
+
+test('booking-guard: duplicates by email or phone digits, upcoming and active only; the counter lets requests through when the database fails', async () => {
+  const G = await import('../netlify/functions/lib/booking-guard.mjs');
+  const now = new Date('2026-10-26T15:00:00Z');
+  const ahead = { status: 'requested', email: 'A@x.com', phone: '(512) 555-0100', starts_at: '2026-10-27T13:00:00Z', ends_at: '2026-10-27T16:00:00Z' };
+  assert.ok(G.findDuplicate({ email: 'a@X.com', phone: '' }, [ahead], now));
+  assert.ok(G.findDuplicate({ email: '', phone: '+1 512-555-0100' }, [ahead], now));
+  assert.equal(G.findDuplicate({ email: 'b@x.com', phone: '512 555 0199' }, [ahead], now), null);
+  assert.equal(G.findDuplicate({ email: 'a@x.com' }, [{ ...ahead, status: 'cancelled' }], now), null);
+  assert.equal(G.findDuplicate({ email: 'a@x.com' }, [{ ...ahead, ends_at: '2026-10-26T14:00:00Z' }], now), null, 'a visit already over does not count');
+  assert.equal(G.contactKey({ email: ' A@x.com ' }), 'e:a@x.com');
+  assert.equal(G.contactKey({ email: '', phone: '(512) 555-0100' }), 'p:5125550100');
+  assert.equal(G.contactKey({}), '');
+  assert.equal(await G.take('b', 'k', 60, 1, { rpc: async () => { throw new Error('down'); } }), true);
+  assert.equal(await G.take('b', 'k', 60, 1, { rpc: async () => false }), false);
+  let seen = null;
+  await G.take('b', 'secret@x.com', 60, 1, { rpc: async (body) => { seen = body; return true; } });
+  assert.equal(JSON.stringify(seen).includes('secret'), false, 'keys are hashed');
 });

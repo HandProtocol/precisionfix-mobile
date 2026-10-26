@@ -124,8 +124,9 @@ ${isConfirm ? '' : `<label class="field">Reason (optional, goes to ${e(name)})<t
   return pageShell({ lang: 'en', title, body });
 }
 
-// The page frame both pages share. `body` is trusted HTML built here.
-function pageShell({ lang = 'en', title, body }) {
+// The page frame both pages share (and the invoice page, lib/invoice-page.mjs).
+// `body` is trusted HTML built by the caller; `css` adds rules after these.
+export function pageShell({ lang = 'en', title, body, css = '' }) {
   const t = config.theme;
   const fonts = config.fonts;
   return `<!DOCTYPE html>
@@ -163,6 +164,7 @@ label.field{display:grid;gap:.35rem;font-size:.9rem;flex:1 1 100%}
 textarea{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line,rgb(128 128 128 / .4));border-radius:10px;padding:.6rem .7rem;width:100%}
 a{color:var(--accent)}
 @media (max-width:480px){dl div{grid-template-columns:1fr;gap:.1rem}.actions .btn{flex:1 1 100%}}
+${css}
 </style>
 </head>
 <body>

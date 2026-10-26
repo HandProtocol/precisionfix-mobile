@@ -47,9 +47,11 @@
   function railPlace(step, shared) { return step === 'sent' ? (shared === 'done' ? 4 : 3) : step === 'details' ? 1 : 0; }
   // A saved draft or sent request is worth restoring while it is younger than `maxAge`.
   function isFresh(saved, now, maxAge) { return !!(saved && saved.ts && now - saved.ts >= 0 && now - saved.ts < maxAge); }
-  window.HandBookingCal = { firstOpenMonth: firstOpenMonth, coveredMonths: coveredMonths, emptyNote: emptyNote, fill: fill, shiftMonth: shiftMonth, railPlace: railPlace, isFresh: isFresh };
+  // A sent request is kept a week, or until its day has passed when that is later (90 days at most).
+  function keepSent(sent, now, today) { return isFresh(sent, now, 7 * 86400000) || !!(sent && sent.date && sent.date >= today && isFresh(sent, now, 90 * 86400000)); }
+  window.HandBookingCal = { firstOpenMonth: firstOpenMonth, coveredMonths: coveredMonths, emptyNote: emptyNote, fill: fill, shiftMonth: shiftMonth, railPlace: railPlace, isFresh: isFresh, keepSent: keepSent };
 
-  /* ---- memory across a refresh: the draft (a day) and the sent request (a week) ---- */
+  /* ---- memory across a refresh: the draft (a day) and the sent request (until its day) ---- */
   var DRAFT_KEY = 'hand-booking-draft', SENT_KEY = 'hand-booking-sent', DAY = 86400000;
   function readStore(key) { try { return JSON.parse(window.localStorage.getItem(key) || 'null'); } catch (_) { return null; }
   }
@@ -64,7 +66,7 @@
   var $ = function (s, r) { return (r || form).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || form).querySelectorAll(s)); };
   var dateInput = $('[name=date]'), slotInput = $('[name=slot]'), cal = $('[data-booking-cal]'), times = $('[data-booking-times]'), hint = $('[data-booking-hint]');
-  var status = $('.form__status'), done = $('.form__done'), submitBtn = $('.form__submit');
+  var status = $('[data-booking-status]') || $('.form__status'), done = $('.form__done'), submitBtn = $('.form__submit');
   var rail = $('[data-booking-rail]'), panel = $('[data-booking-panel]');
   var carStep = $('[data-step=car]'), issuesStep = $('[data-step=issues]'), shareStatus = $('[data-booking-share-status]'), thanks = $('[data-booking-thanks]');
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -98,6 +100,7 @@
   cal.hidden = false; times.hidden = false;
   form.classList.add('is-funnel'); rail.hidden = false;
   $$('[data-booking-back]').forEach(function (b) { b.hidden = false; });
+  var findBox = $('[data-booking-find]'); if (findBox) findBox.hidden = false;
 
   /* ---- the rail and the panel ---- */
   function timeLabel() {
@@ -285,10 +288,19 @@
     var manage = $('[data-booking-manage]');
     if (manage && sent.manage_url) manage.href = sent.manage_url; else if (manage) manage.hidden = true;
     var again = $('[data-booking-again]'); if (again) again.hidden = false;
+    showLost(sent.email !== false);
+  }
+  // "Cannot find our email?": the resend button when the request carries an email, else keep-this-page words.
+  function showLost(hasEmail) {
+    var lost = $('[data-booking-lost]'); if (!lost) return;
+    lost.hidden = !state.token;
+    $$('[data-lost-email]', lost).forEach(function (n) { n.hidden = !hasEmail; });
+    var no = $('[data-lost-noemail]', lost); if (no) no.hidden = hasEmail;
+    var st = $('[data-booking-link-status]', lost); if (st) { st.textContent = ''; st.className = 'form__status'; }
   }
   function restoreSent() {
     var sent = readStore(SENT_KEY);
-    if (!isFresh(sent, Date.now(), 7 * DAY) || !sent.token) { writeStore(SENT_KEY, null); return false; }
+    if (!keepSent(sent, Date.now(), cfg.today) || !sent.token) { writeStore(SENT_KEY, null); return false; }
     state.name = sent.name || ''; state.token = sent.token; state.shared = sent.shared || null; state.car = sent.car || '';
     paintSent(sent);
     restoreCarDraft(sent.draft);
@@ -321,11 +333,21 @@
     writeStore(SENT_KEY, null); writeStore(DRAFT_KEY, null);
     state = { step: 'time', name: '', shared: null, token: '' }; selected = ''; selectedSlot = ''; selectedLabel = ''; dateInput.value = ''; slotInput.value = '';
     form.reset(); if (carStep) carStep.hidden = true; if (issuesStep) issuesStep.hidden = true; if (thanks) thanks.hidden = true; b.hidden = true;
+    var lost = $('[data-booking-lost]'); if (lost) lost.hidden = true;
     renderCal(); renderTimes(); show('time');
   });
 
   /* ---- submit ---- */
   function fail(msg) { form.classList.remove('is-sending'); status.className = 'form__status is-bad'; status.textContent = msg; submitBtn.disabled = false; }
+  // The same email or phone already has a request ahead: the server emailed its link
+  // again and stored nothing. Say so, and offer to send this one too (a second car).
+  var sendAnother = false;
+  function already(msg) {
+    form.classList.remove('is-sending'); submitBtn.disabled = false;
+    status.className = 'form__status is-note'; status.textContent = '';
+    status.appendChild(el('span', { text: msg + ' ' }));
+    status.appendChild(el('button', { type: 'button', class: 'booking__see', onclick: function () { sendAnother = true; submitBtn.click(); } }, [str('anyway')]));
+  }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var service = $('[name=service]');
@@ -340,12 +362,15 @@
     new FormData(form).forEach(function (v, k) { body[k] = v; });
     ['vin', 'car_model', 'issues', 'self_report_ack'].forEach(function (k) { delete body[k]; }); // those go with the share, after
     body.lang = lang();
+    if (sendAnother) body.another = '1';
+    sendAnother = false;
     form.classList.add('is-sending'); submitBtn.disabled = true;
     status.className = 'form__status'; status.textContent = str('sending');
     fetch('/api/booking', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
       .then(function (res) { return res.json().then(function (data) { return { res: res, data: data }; }); })
       .then(function (r) {
         if (!r.res.ok || !r.data || r.data.ok === false) throw new Error((r.data && r.data.error) || str('failed'));
+        if (r.data.already) { already(r.data.message || ''); return; }
         status.textContent = ''; form.classList.remove('is-sending');
         state.name = $('[name=name]').value.trim();
         var sum = $('[data-booking-summary]');
@@ -357,11 +382,45 @@
         state.token = m ? m[1] : '';
         if (state.token && carStep) carStep.hidden = false;
         writeStore(DRAFT_KEY, null);
-        writeStore(SENT_KEY, state.token ? { token: state.token, name: state.name, when: r.data.when || null, service: r.data.service || '', manage_url: r.data.manage_url || '', shared: null, car: '', issues: false, ts: Date.now() } : null);
+        var hasEmail = !!email.value.trim();
+        writeStore(SENT_KEY, state.token ? { token: state.token, name: state.name, when: r.data.when || null, service: r.data.service || '', manage_url: r.data.manage_url || '', date: selected, email: hasEmail, shared: null, car: '', issues: false, ts: Date.now() } : null);
         var again = $('[data-booking-again]'); if (again) again.hidden = !state.token;
+        showLost(hasEmail);
         show('sent'); drop('details'); done.focus();
       })
       .catch(function (err) { fail(err.message || str('failed')); });
+  });
+
+  /* ---- lost the email: the link again (by the request's token), or find it by email ---- */
+  function postJson(path, payload) {
+    payload.lang = lang();
+    return fetch(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) })
+      .then(function (res) { return res.json().then(function (data) { if (!res.ok || !data || data.ok === false) throw new Error((data && data.error) || str('failed')); return data; }); });
+  }
+  function say(node, msg, bad) { if (!node) return; node.className = 'form__status' + (bad ? ' is-bad' : ''); node.textContent = msg; }
+  form.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-booking-link]');
+    if (!b || !state.token) return;
+    var st = $('[data-booking-link-status]'); b.disabled = true; say(st, str('sending'));
+    postJson('/api/booking/manage?t=' + encodeURIComponent(state.token), { action: 'link' })
+      .then(function () { say(st, str('link_sent')); })
+      .catch(function (err) { say(st, err.message || str('failed'), true); })
+      .then(function () { b.disabled = false; });
+  });
+  form.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-booking-find-send]');
+    if (!b) return;
+    var input = $('[data-find-email]'), st = $('[data-booking-find-status]'), v = input ? input.value.trim() : '';
+    if (!v || (input.checkValidity && !input.checkValidity())) { say(st, str('find_need'), true); if (input) input.focus(); return; }
+    b.disabled = true; say(st, str('sending'));
+    postJson('/api/booking/find', { email: v })
+      .then(function (data) { say(st, data.message || str('link_sent')); })
+      .catch(function (err) { say(st, err.message || str('failed'), true); })
+      .then(function () { b.disabled = false; });
+  });
+  // Enter in the find field sends it, not the booking form.
+  form.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target && e.target.hasAttribute && e.target.hasAttribute('data-find-email')) { e.preventDefault(); var b = $('[data-booking-find-send]'); if (b) b.click(); }
   });
 
   /* ---- after the request: the car, then what they noticed ---- */

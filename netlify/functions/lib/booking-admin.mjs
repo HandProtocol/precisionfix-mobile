@@ -13,7 +13,7 @@
 // reschedule keeps/gives confirmed and records the original ask in requested_*.
 
 import crypto from 'node:crypto';
-import { BOOKING, config } from './config.mjs';
+import { BOOKING, INVOICES, config } from './config.mjs';
 import { loadSite } from './content.mjs';
 import { addDays, countsByDay, isDateStr, offeredTimes, overlapSummary, parseHm, settingsFrom, zonedParts, zonedToUtc } from './booking.mjs';
 import { citiesFor, intakeFor, servicesFor } from './booking-form.mjs';
@@ -24,6 +24,8 @@ import { json, readJson } from './http.mjs';
 import { sb } from './db.mjs';
 import { depositEnabled, depositFieldsFor, depositOf, payUrlFor, refundIfPaid } from './booking-deposit.mjs';
 import { refundPaymentIntent } from './stripe.mjs';
+import { invoicesForBookings } from './invoice-db.mjs';
+import { invoiceSummary } from './invoices-admin.mjs';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DURATIONS = new Set([30, 45, 60, 90, 120, 180, 240, 300, 360, 480]);
@@ -206,6 +208,8 @@ async function list(url) {
   ]);
   const seen = new Set();
   const all = [...requested, ...range].filter((b) => (seen.has(b.id) ? false : seen.add(b.id)));
+  // each booking's invoices, for the card's chip and its Make invoice button
+  const invoices = INVOICES ? await invoicesForBookings(all.filter((b) => b.status === 'confirmed' || b.status === 'completed').map((b) => b.id)).catch(() => []) : [];
   return json(200, {
     ok: true,
     tz,
@@ -224,6 +228,7 @@ async function list(url) {
     notify: ownerRecipients(), // who the request mails go to, shown on the tab
     // the deposit as configured, and whether Stripe is wired (keys present)
     deposit: BOOKING.deposit ? { amount: BOOKING.deposit.amount, currency: BOOKING.deposit.currency, holdHours: BOOKING.deposit.holdHours, credited: BOOKING.deposit.credited, enabled: depositEnabled() } : null,
+    invoices: INVOICES ? invoices : null,
   });
 }
 
@@ -238,7 +243,8 @@ async function summary() {
   // the next confirmed job, for the admin's Home screen
   const n = upcoming.slice().sort((x, y) => (x.starts_at < y.starts_at ? -1 : 1))[0];
   const next = n ? { id: n.id, name: n.name, service_label: n.service_label, starts_at: n.starts_at, ends_at: n.ends_at, window: n.window || '' } : null;
-  return json(200, { ok: true, requested: requested.length, upcoming: upcoming.length, self_test: selfTest, next, tz: BOOKING.tz });
+  const invoices = INVOICES ? await invoiceSummary().catch(() => null) : null;
+  return json(200, { ok: true, requested: requested.length, upcoming: upcoming.length, self_test: selfTest, next, tz: BOOKING.tz, ...(invoices ? { invoices } : {}) });
 }
 
 async function add(req, editor, origin) {

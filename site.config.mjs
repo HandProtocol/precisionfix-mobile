@@ -18,7 +18,7 @@ export default {
   supabase: { projectRef: 'vconmgerblqbworcqkvr', schema: 'command' },
 
   // Bump whenever public/assets/** change (site + admin assets both carry it).
-  assetVersion: '20261023d',
+  assetVersion: '20261026a',
 
   fonts: base.fonts,
 
@@ -74,8 +74,15 @@ export default {
     webhookPath: '/api/booking/stripe',
     events: ['checkout.session.completed'],
     permissions: ['Checkout Sessions', 'Refunds', 'Webhook Endpoints'],
-    purpose: 'the $50 booking deposit',
+    purpose: 'the $50 booking deposit and your invoices',
   },
+
+  // Bill a finished job from its booking: labor, parts, the gas surcharge,
+  // the paid deposit taken off; the customer pays the whole balance through
+  // Stripe from a link (lib/invoices.mjs). Due on receipt; reminded 3, 7 and
+  // 14 days later. taxRate 0 until Alex says whether he charges sales tax on
+  // parts (Austin is 825 = 8.25%); he can also mark lines taxable per invoice.
+  invoices: { prefix: 'PF', dueDays: 0, reminders: [3, 7, 14], taxRate: 0 },
 
   // Ask before booking (lib/questions.mjs): a customer account at /account/
   // holds their conversations with Alex; he answers in /admin/ → Questions

@@ -174,6 +174,7 @@ export const SECTIONS = [
       t('title', 'Page title', 70),
       ta('description', 'Description', 160),
       t('google_verification', 'Google verification code', 120, 'From Search Console → HTML tag. Paste only the code between the quotes after content=.'),
+      t('bing_verification', 'Bing verification code', 120, 'From Bing Webmaster Tools → HTML Meta Tag. Paste only the code between the quotes after content=. Not needed if you import from Search Console.'),
     ],
   },
   {
@@ -281,8 +282,8 @@ export const DEFAULT_CONTENT = {
     intro_es: 'Elige un día y una hora, deja tus datos y te confirmo por texto o llamada. El carro viene después.',
     success: 'Got it. I will text or call you shortly to confirm a time.',
     success_es: 'Recibido. Te escribo o te llamo en breve para confirmar la hora.',
-    note: 'Nothing to pay to request a time. A $50 deposit locks in your confirmed visit and comes off your bill.',
-    note_es: 'No pagas nada para pedir un horario. Un depósito de $50 asegura tu visita confirmada y se descuenta de tu cuenta.',
+    note: 'Nothing to pay to request a time. A $50 deposit locks in your confirmed visit and comes off your bill. Pay the rest online or in person.',
+    note_es: 'No pagas nada para pedir un horario. Un depósito de $50 asegura tu visita confirmada y se descuenta de tu cuenta. El resto, en línea o en persona.',
     steps_heading: 'What happens next',
     steps_heading_es: 'Qué sigue',
     steps: [
@@ -309,8 +310,10 @@ export const DEFAULT_CONTENT = {
   },
   seo: {
     title: 'PrecisionFix – Mobile Mechanic | Austin, TX',
-    description: 'Factory-certified Mercedes-Benz mobile mechanic in Austin, TX. Dealer-level diagnostics, brakes, batteries, electrical and more, done in your driveway. English & Spanish.',
+    // Under the field's 160 (the old 167-character default was clipped to "…English").
+    description: 'Factory-certified Mercedes-Benz mobile mechanic in Austin, TX: dealer-level diagnostics, brakes, batteries and electrical in your driveway. English & Spanish.',
     google_verification: '',
+    bing_verification: '',
   },
   footer: {
     note: '© {year} PrecisionFix · Mobile Mechanic · Austin, TX',

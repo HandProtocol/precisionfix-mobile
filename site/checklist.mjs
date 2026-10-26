@@ -7,7 +7,7 @@
 // Inline marks: **bold**, `code`. Keep steps short and literal.
 
 export const SITE = 'PrecisionFix';
-export const DOMAIN = 'your Namecheap domain'; // replace with the real domain once known, e.g. precisionfix.com
+export const DOMAIN = 'precisionfixmobile.com';
 export const REPO = 'precisionfix-site';
 export const OLD_SITE = 'https://percesionfix.netlify.app';
 
@@ -154,22 +154,44 @@ export const CHECKLIST = [
   {
     id: 'search_console',
     title: 'Tell Google the site exists (Search Console)',
-    why: 'Search Console is how Google learns about your site and shows you which searches bring people in. It takes ten minutes and does not need a computer.',
+    why: 'Search Console is how Google learns about your site and shows you which searches bring people in. The site already hands Google everything it needs (a sitemap, one address per page, your business details); this step is you claiming it. Ten minutes, no computer needed.',
     actions: [
       { label: 'Open Search Console', kind: 'url', target: 'https://search.google.com/search-console' },
+      { label: 'Copy your site address', kind: 'copy', target: 'site' },
       { label: 'Paste the code here', kind: 'field', target: 'seo.google_verification' },
+      { label: 'Copy the sitemap address', kind: 'copy', target: 'sitemap' },
     ],
     check: { kind: 'field', path: 'seo.google_verification' },
     phone: [
-      'Tap **Open Search Console** and sign in with the Google account you want to keep for the business.',
-      'Choose **URL prefix**, type your full address `https://' + DOMAIN + '/`, and tap Continue.',
+      'Tap **Open Search Console** and sign in with the Google account you want to keep for the business (use the same one for your Business Profile).',
+      'Choose **URL prefix**. Tap **Copy your site address** here, paste it there, and tap Continue.',
       'Under verification methods pick **HTML tag**. Copy only the long code between the quotes after `content=`.',
       'Tap **Paste the code here**, paste it, and tap **Publish changes**.',
       'Back in Search Console tap **Verify**. It should say ownership verified.',
-      'In the left menu open **Sitemaps**, type `sitemap.xml`, and tap **Submit**.',
+      'In the left menu open **Sitemaps**. Tap **Copy the sitemap address** here, paste it there, and tap **Submit**.',
+      'Optional: open **URL inspection**, paste your site address, and tap **Request indexing** so Google visits today instead of in a few days.',
     ],
-    ask: 'Add HAND\'s email as a user in Search Console and we will finish it.',
+    ask: 'Add HAND\'s email (hand@handprotocol.org) as a user in Search Console and we will finish it.',
     done: 'Search Console shows the property as verified and the sitemap as Success.',
+  },
+  {
+    id: 'bing',
+    title: 'Tell Bing too (Bing Webmaster Tools)',
+    why: 'Bing also feeds DuckDuckGo, Yahoo and ChatGPT search, so one more step puts you in all of them. Once Search Console is done, Bing copies it in a couple of taps.',
+    actions: [
+      { label: 'Open Bing Webmaster Tools', kind: 'url', target: 'https://www.bing.com/webmasters' },
+      { label: 'Copy the sitemap address', kind: 'copy', target: 'sitemap' },
+      { label: 'Paste a Bing code here', kind: 'field', target: 'seo.bing_verification' },
+    ],
+    phone: [
+      'Do the Search Console step first.',
+      'Tap **Open Bing Webmaster Tools** and sign in with the **same Google account**.',
+      'Choose **Import your sites from GSC**, allow it, tick your site, and tap **Import**. Bing takes the site and its sitemap from Google: verified, nothing to paste.',
+      'If the import does not offer your site, choose **Add your site manually** instead: tap **Copy the sitemap address** here and paste it, then pick **HTML Meta Tag**, copy only the code after `content=`, tap **Paste a Bing code here**, paste it, **Publish changes**, and tap **Verify** in Bing.',
+      'Optional: under **Sitemaps**, check that the sitemap shows as Success after a day or two.',
+    ],
+    ask: 'Add HAND\'s email (hand@handprotocol.org) as a user in Bing Webmaster Tools and we will finish it.',
+    done: 'Bing Webmaster Tools lists your site as verified and shows the sitemap.',
   },
   {
     id: 'google_business',
@@ -205,19 +227,23 @@ export const CHECKLIST = [
   },
   {
     id: 'payments',
-    title: 'Connect Stripe for the $50 deposit',
-    why: 'When you confirm a booking, the customer gets a Pay link for a $50 deposit that comes off the bill (refunded only if you cancel). The money goes straight to your own Stripe account. Until Stripe is connected nobody is asked for a deposit; the calendar works as before.',
+    title: 'Connect Stripe: try it with a test key, then go live',
+    why: 'When you confirm a booking, the customer gets a Pay link for a $50 deposit that comes off the bill (refunded only if you cancel), and your invoices get a Pay button. The money goes straight to your own Stripe account. Until Stripe is connected nobody is asked for a deposit and invoices are marked paid by hand.',
     actions: [
       { label: 'Connect Stripe', kind: 'tab', target: 'payments' },
       { label: 'Create a Stripe account', kind: 'url', target: 'https://dashboard.stripe.com/register' },
+      { label: 'Make a key in Stripe', kind: 'url', target: 'https://dashboard.stripe.com/apikeys' },
     ],
     check: { kind: 'stripe' },
     phone: [
-      'Tap **Connect Stripe**. The Payments screen walks you through it in three steps.',
-      'No Stripe account yet? Tap **Create a Stripe account** first. It asks for your ID, your business details, and the bank account your deposits are paid out to.',
-      'In Stripe, make a restricted key for the website (Checkout Sessions, Refunds and Webhook Endpoints set to Write), copy it, and paste it on the Payments screen. The site sets up the rest.',
+      'No Stripe account yet? Tap **Create a Stripe account** first. It asks for your ID, your business details, and the bank account your money is paid out to.',
+      '**Test first.** In Stripe, switch on **Test mode**, tap **Make a key in Stripe**, and create a **restricted key** for the website with Checkout Sessions, Refunds and Webhook Endpoints set to **Write**. It starts with `rk_test_`.',
+      'Tap **Connect Stripe**, paste the test key, and save. The site sets up the rest.',
+      'Send yourself a test booking, confirm it, and pay the deposit with the test card `4242 4242 4242 4242` (any future date, any CVC). Make an invoice to yourself and pay it the same way. Both should show as paid here.',
+      '**Then go live.** Switch Test mode off in Stripe, make the same restricted key again (now it starts with `rk_live_`), and paste it on the Payments screen in place of the test key.',
+      'Never paste a key that starts with `pk_` (that one cannot take payments) and never send a key by email.',
     ],
-    ask: 'Make the key, then send it to HAND in a private message (never by email), and HAND connects it for you.',
-    done: 'Ticks itself: the Payments screen says "Stripe is connected", and a test booking you confirm shows the Pay link in its email.',
+    ask: 'Make the key, then send it to HAND in a private message (never by email), and HAND connects it and runs the test with you.',
+    done: 'The Payments screen says Stripe is connected in live mode, and a real confirmed booking shows the Pay link in its email.',
   },
 ];

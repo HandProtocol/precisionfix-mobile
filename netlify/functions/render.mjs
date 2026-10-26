@@ -10,6 +10,8 @@ import { loadStripeKeys } from './lib/stripe.mjs';
 export default async (req) => {
   const url = new URL(req.url);
   const origin = `${url.protocol}//${url.host}`;
+  // One address per page: /index.html moves to / (the query, e.g. ?theme=, goes along).
+  if (url.pathname === '/index.html') return new Response(null, { status: 301, headers: { Location: `/${url.search}` } });
   try {
     await loadStripeKeys(); // the deposit copy shows only once Stripe is connected
     const { content, media } = await loadSite();
@@ -23,6 +25,8 @@ export default async (req) => {
         'Netlify-CDN-Cache-Control': 'public, s-maxage=600, stale-while-revalidate=86400, durable',
         'Netlify-Cache-Tag': site.cacheTag,
         'Netlify-Vary': 'query=theme',
+        // [[headers]] in netlify.toml do not reach function responses
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
       },
     });
   } catch (err) {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { seedMedia } from '../netlify/functions/lib/config.mjs';
+import { config, seedMedia } from '../netlify/functions/lib/config.mjs';
 import { DEFAULT_CONTENT, SECTIONS, renderPage, sanitize } from '../netlify/functions/lib/site.mjs';
 import { renderAdminPage } from '../netlify/functions/lib/admin-page.mjs';
 import { THEMES, THEME_IDS, pickTheme } from '../site/themes.mjs';
@@ -18,7 +18,7 @@ test('renders every section, the nav, the booking form, lightbox data, JSON-LD a
   assert.match(html, /href="\/admin\/"/);
   assert.match(html, /"@type":"AutoRepair"/);
   assert.match(html, /"areaServed":\[\{"@type":"City","name":"Austin"\}/);
-  assert.match(html, /href="tel:5125713425"/);
+  assert.match(html, /href="tel:\+15125713425"/);
   assert.match(html, /class="hero__line">Precision<\/span><span class="hero__line hero__line--alt">Fix<\/span>/);
   assert.equal(html.includes('${'), false);
 });
@@ -172,7 +172,12 @@ test('conversion: trust line, booking prompts after Services and the photos, wha
 
 test('search: AutoRepair structured data with address, E.164 phone, opening hours and the services catalog; FAQPage; share locale tags', () => {
   const html = full();
-  const ld = JSON.parse(html.match(/<script type="application\/ld\+json">(\{"@context":"https:\/\/schema\.org","@type":"AutoRepair"[\s\S]*?)<\/script>/)[1]);
+  const graph = JSON.parse(html.match(/<script type="application\/ld\+json">(\{"@context":"https:\/\/schema\.org","@graph"[\s\S]*?)<\/script>/)[1])['@graph'];
+  const site = graph.find((n) => n['@type'] === 'WebSite');
+  const ld = graph.find((n) => n['@type'] === 'AutoRepair');
+  assert.equal(site.url, `${config.productionUrl}/`, 'the WebSite node names the site for search results');
+  assert.equal(ld['@id'], `${config.productionUrl}/#business`);
+  assert.deepEqual(site.publisher, { '@id': ld['@id'] });
   assert.equal(ld.telephone, '+15125713425');
   assert.deepEqual(ld.address, { '@type': 'PostalAddress', addressLocality: 'Austin', addressRegion: 'TX', addressCountry: 'US' });
   assert.equal(ld.openingHoursSpecification.length, 6);

@@ -98,3 +98,14 @@
 .booking__back:hover,.booking__back:focus-visible{color:var(--ink)}
 .booking__back[hidden]{display:none}
 .booking__next{margin:0;padding:.65rem .85rem;border:1px dashed var(--line-2,var(--line));border-radius:var(--r,8px);font-size:.9rem;line-height:1.45;color:var(--ink)}
+/* already have a request (the server stored nothing), lost the email, find a booking by email */
+.booking .form__status.is-note{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;padding:.75rem .9rem;border:1px solid var(--line-2,var(--line));border-radius:var(--r,8px);font-weight:500;line-height:1.45;color:var(--ink)}
+.booking__lost{margin:.4rem 0;padding:.75rem .9rem;border:1px dashed var(--line-2,var(--line));border-radius:var(--r,8px);font-size:.9rem;line-height:1.45}
+.booking__lost p{margin:0 0 .5rem}
+.booking__lost[hidden],.booking__lost [hidden],.booking__find[hidden]{display:none}
+.booking__find{margin:.2rem 0 0;font-size:.92rem}
+.booking__find summary{cursor:pointer;font-weight:600;color:var(--ink-2,var(--ink));text-decoration:underline;text-underline-offset:3px;padding:.35rem 0}
+.booking__find summary:hover,.booking__find summary:focus-visible{color:var(--ink)}
+.booking__find-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0}
+.booking__find-row .field{flex:1 1 14rem;margin:0}
+.booking__find-row input{font-size:16px}

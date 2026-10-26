@@ -4,7 +4,7 @@
 
 import { sb } from './db.mjs';
 
-const SELECT = 'id,status,service_key,service_label,starts_at,ends_at,tz,window,requested_starts_at,requested_ends_at,name,phone,email,lang,contact_pref,location_kind,address,city,intake,notes,owner_note,decline_reason,source,created_at,confirmed_at,updated_at,updated_by,act_expires_at,reminder_sent_at,reminder_soon_sent_at,deposit_status,deposit_amount,deposit_currency,deposit_due_by,deposit_session_id,deposit_payment_intent,deposit_paid_at,deposit_refund_id,deposit_refunded_at,deposit_nudge_sent_at,vin,car_model,issues,self_report_ack,self_report_notice';
+const SELECT = 'id,status,service_key,service_label,starts_at,ends_at,tz,window,requested_starts_at,requested_ends_at,name,phone,email,lang,contact_pref,location_kind,address,city,intake,notes,owner_note,decline_reason,source,created_at,confirmed_at,updated_at,updated_by,act_expires_at,reminder_sent_at,reminder_soon_sent_at,deposit_status,deposit_amount,deposit_currency,deposit_due_by,deposit_session_id,deposit_payment_intent,deposit_paid_at,deposit_refund_id,deposit_refunded_at,deposit_nudge_sent_at,deposit_reminder_sent_at,vin,car_model,issues,self_report_ack,self_report_notice';
 
 // The "already sent" markers dueReminders() may filter on. The name goes into
 // the query string, so it is checked against this list, never passed through.
@@ -82,6 +82,13 @@ export async function bookingByDepositSession(sessionId) {
 // has not been nudged about yet (booking-reminders.mjs).
 export async function overdueDeposits(nowIso) {
   const rows = await sb(`/{bookings}?status=eq.confirmed&deposit_status=eq.due&deposit_due_by=lt.${enc(nowIso)}&deposit_nudge_sent_at=is.null&select=${SELECT}&order=deposit_due_by.asc&limit=100`);
+  return rows || [];
+}
+
+// Confirmed bookings whose deposit is still due, held until somewhere in
+// (now, holdEnd], and the customer not yet reminded: halfway through the hold.
+export async function depositsToRemind(nowIso, holdEndIso) {
+  const rows = await sb(`/{bookings}?status=eq.confirmed&deposit_status=eq.due&deposit_due_by=gt.${enc(nowIso)}&deposit_due_by=lte.${enc(holdEndIso)}&deposit_reminder_sent_at=is.null&select=${SELECT}&order=deposit_due_by.asc&limit=100`);
   return rows || [];
 }
 

@@ -11,7 +11,9 @@ test('paragraphs split on blank lines and escape', () => {
 });
 
 test('phone + instagram helpers normalize input', () => {
-  assert.equal(telHref('(512) 555-0100'), 'tel:5125550100');
+  assert.equal(telHref('(512) 555-0100'), 'tel:+15125550100');
+  assert.equal(telHref('+1 512 555 0100'), 'tel:+15125550100');
+  assert.equal(smsHref('512-555-0100'), 'sms:+15125550100');
   assert.equal(smsHref(''), '');
   assert.equal(instagramUrl('@studio'), 'https://instagram.com/studio');
   assert.equal(instagramUrl('https://www.instagram.com/studio/'), 'https://instagram.com/studio');

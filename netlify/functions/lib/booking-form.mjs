@@ -49,6 +49,12 @@ const S = {
   again: ['Request another time', 'Pedir otra hora'],
   choose: ['Choose…', 'Elige…'],
   back: ['← Back', '← Atrás'],
+  lost: ['Cannot find our email? Look in spam for mail from', '¿No encuentras nuestro correo? Busca en spam un correo de'],
+  lost_send: ['Email me the link again', 'Enviarme el enlace otra vez'],
+  lost_no_email: ['You left no email, so keep this page: the link above is your booking. Or call or text us.', 'No dejaste correo, así que guarda esta página: el enlace de arriba es tu reserva. O llámanos o escríbenos.'],
+  find: ['Already sent a request? Find your booking', '¿Ya enviaste una solicitud? Encuentra tu reserva'],
+  find_intro: ['Type the email you booked with and we will send you its link.', 'Escribe el correo con el que reservaste y te enviamos su enlace.'],
+  find_send: ['Send me the link', 'Enviarme el enlace'],
   car_next: ['Next, after you send this: which car it is and what you have noticed. Both optional.', 'Después de enviar esto: qué carro es y qué has notado. Las dos cosas son opcionales.'],
 };
 const s = (k) => S[k];
@@ -144,8 +150,8 @@ export function bookingBlock({ content, now = new Date(), success, success_es, n
   const cfg = {
     tz, today, last, mode: settings.mode,
     strings: {
-      en: { loading: 'Loading…', none: 'Nothing open that day. Pick another.', pick_day: 'Pick a day first.', prev: 'Previous month', next: 'Next month', today: 'Today', sending: 'Sending…', failed: 'That did not send. Try again, or call us.', choose_service: 'Pick a service first.', choose_time: 'Pick a time.', asked: 'You asked for', none_month: 'Nothing open in {month}.', none_left: 'Nothing open in {month}. Call us to find a time.', see_month: 'See {month}', need_contact: 'Leave an email or a phone so we can reach you.', bad_phone: 'That phone number does not look right.', rail: ['Day and time', 'Your details', 'Sent', 'Your car'], step_of: 'Step {n} of 4', change: 'Change', needs_agree: cw.needs_agree, car_thanks: cw.car_thanks, issues_thanks: cw.issues_thanks },
-      es: { loading: 'Cargando…', none: 'No hay nada libre ese día. Elige otro.', pick_day: 'Elige un día primero.', prev: 'Mes anterior', next: 'Mes siguiente', today: 'Hoy', sending: 'Enviando…', failed: 'No se pudo enviar. Intenta de nuevo o llámanos.', choose_service: 'Elige un servicio primero.', choose_time: 'Elige una hora.', asked: 'Pediste', none_month: 'No hay nada libre en {month}.', none_left: 'No hay nada libre en {month}. Llámanos para buscar una hora.', see_month: 'Ver {month}', need_contact: 'Deja un correo o un teléfono para contactarte.', bad_phone: 'Ese teléfono no parece correcto.', rail: ['Día y hora', 'Tus datos', 'Enviada', 'Tu carro'], step_of: 'Paso {n} de 4', change: 'Cambiar', needs_agree: cwEs.needs_agree, car_thanks: cwEs.car_thanks, issues_thanks: cwEs.issues_thanks },
+      en: { anyway: 'This is another car or visit: send it anyway', link_sent: 'Sent. Check your inbox (and spam) in a minute.', find_need: 'Type the email you booked with.', loading: 'Loading…', none: 'Nothing open that day. Pick another.', pick_day: 'Pick a day first.', prev: 'Previous month', next: 'Next month', today: 'Today', sending: 'Sending…', failed: 'That did not send. Try again, or call us.', choose_service: 'Pick a service first.', choose_time: 'Pick a time.', asked: 'You asked for', none_month: 'Nothing open in {month}.', none_left: 'Nothing open in {month}. Call us to find a time.', see_month: 'See {month}', need_contact: 'Leave an email or a phone so we can reach you.', bad_phone: 'That phone number does not look right.', rail: ['Day and time', 'Your details', 'Sent', 'Your car'], step_of: 'Step {n} of 4', change: 'Change', needs_agree: cw.needs_agree, car_thanks: cw.car_thanks, issues_thanks: cw.issues_thanks },
+      es: { anyway: 'Es otro carro u otra visita: enviarla de todos modos', link_sent: 'Enviado. Revisa tu correo (y spam) en un minuto.', find_need: 'Escribe el correo con el que reservaste.', loading: 'Cargando…', none: 'No hay nada libre ese día. Elige otro.', pick_day: 'Elige un día primero.', prev: 'Mes anterior', next: 'Mes siguiente', today: 'Hoy', sending: 'Enviando…', failed: 'No se pudo enviar. Intenta de nuevo o llámanos.', choose_service: 'Elige un servicio primero.', choose_time: 'Elige una hora.', asked: 'Pediste', none_month: 'No hay nada libre en {month}.', none_left: 'No hay nada libre en {month}. Llámanos para buscar una hora.', see_month: 'Ver {month}', need_contact: 'Deja un correo o un teléfono para contactarte.', bad_phone: 'Ese teléfono no parece correcto.', rail: ['Día y hora', 'Tus datos', 'Enviada', 'Tu carro'], step_of: 'Paso {n} de 4', change: 'Cambiar', needs_agree: cwEs.needs_agree, car_thanks: cwEs.car_thanks, issues_thanks: cwEs.issues_thanks },
     },
   };
 
@@ -171,6 +177,16 @@ export function bookingBlock({ content, now = new Date(), success, success_es, n
     <p class="booking__hint" data-booking-hint hidden></p>
   </fieldset>
 
+  <details class="booking__find" data-view="time" data-booking-find hidden>
+    <summary>${bi('span', s('find')[0], s('find')[1])}</summary>
+    ${bi('p', s('find_intro')[0], s('find_intro')[1], 'booking__hint-sm')}
+    <div class="booking__find-row">
+      <label class="field"><span class="sr">${e(s('email')[0])}</span><input type="email" autocomplete="email" inputmode="email" maxlength="${EMAIL_MAX}" data-find-email placeholder="you@example.com"></label>
+      <button class="btn btn--ghost btn--sm" type="button" data-booking-find-send>${bi('span', s('find_send')[0], s('find_send')[1])}</button>
+    </div>
+    <p class="form__status" role="status" aria-live="polite" data-booking-find-status></p>
+  </details>
+
   <fieldset class="form__group booking__step" data-step="details" data-view="details">
     <legend><span class="form__step">${num()}</span>${bi('span', s('details')[0], s('details')[1])}</legend>
     <button class="booking__back" type="button" data-booking-back hidden>${bi('span', s('back')[0], s('back')[1])}</button>
@@ -195,7 +211,7 @@ export function bookingBlock({ content, now = new Date(), success, success_es, n
     ${settings.confirmWithin.en ? bi('p', settings.confirmWithin.en, settings.confirmWithin.es, 'form__note booking__within') : ''}
     ${note ? bi('p', note, note_es, 'form__note') : ''}
   </div>
-  <p class="form__status" role="status" aria-live="polite"></p>
+  <p class="form__status" role="status" aria-live="polite" data-booking-status></p>
   <div class="form__done" data-view="sent" hidden tabindex="-1">
     <span class="form__check" aria-hidden="true"></span>
     ${bi('h3', s('sent')[0], s('sent')[1])}
@@ -203,6 +219,12 @@ export function bookingBlock({ content, now = new Date(), success, success_es, n
     ${bi('p', s('nothing_set')[0], s('nothing_set')[1], 'booking__nothing')}
     ${success ? bi('p', success, success_es, 'booking__success') : ''}
     <p><a class="booking__manage" data-booking-manage href="#book">${bi('span', s('manage')[0], s('manage')[1])}</a></p>
+    <div class="booking__lost" data-booking-lost hidden>
+      <p data-lost-email>${bi('span', s('lost')[0], s('lost')[1])} <strong>${e(config.name)}</strong>.</p>
+      <p data-lost-email><button class="btn btn--ghost btn--sm" type="button" data-booking-link>${bi('span', s('lost_send')[0], s('lost_send')[1])}</button></p>
+      ${bi('p', s('lost_no_email')[0], s('lost_no_email')[1], 'booking__hint-sm', 'data-lost-noemail hidden')}
+      <p class="form__status" role="status" aria-live="polite" data-booking-link-status></p>
+    </div>
     <p><button class="btn btn--ghost btn--sm booking__again" type="button" data-booking-again hidden>${bi('span', s('again')[0], s('again')[1])}</button></p>
     ${tel ? `<p>${bi('span', s('hurry')[0], s('hurry')[1])} <a href="${e(tel)}">${e(phone)}</a></p>` : ''}
     ${carSteps()}
