@@ -11,16 +11,13 @@
 // #content/<section>, #look, #payments …) so the phone's back button works.
 
 import { BOOKING, INVOICES, PAYMENTS, QUESTIONS, config } from './config.mjs';
-import { escapeHtml as e, faviconLink } from './html.mjs';
+import { escapeHtml as e, faviconLink, fontLinks as fontLinkTags } from './html.mjs';
 import { adminThemeVars } from './theme.mjs';
 import { checklistHtml, checklistItems, looksHtml } from './checklist.mjs';
 import { TIME_OPTIONS } from './booking.mjs';
 
 function fontLinks() {
-  if (!config.fonts.googleCss) return '';
-  return `<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="${e(config.fonts.googleCss)}" rel="stylesheet">`;
+  return fontLinkTags(config.fonts.googleCss);
 }
 
 // The Bookings tab (config.booking, request mode). Lists are rendered by

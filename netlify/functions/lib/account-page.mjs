@@ -3,7 +3,7 @@
 // it from /api/account/* and swaps EN/ES by data-i keys.
 
 import { QUESTIONS, config, siteName } from './config.mjs';
-import { escapeHtml as e } from './html.mjs';
+import { escapeHtml as e, fontLinks } from './html.mjs';
 import { siteThemeVars } from './theme.mjs';
 
 const i = (key, en) => `data-i="${key}">${e(en)}`;
@@ -20,7 +20,7 @@ export function renderAccountPage() {
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="${e(t.bg)}">
 <link rel="icon" type="image/svg+xml" href="${e(config.favicon)}">
-${fonts.googleCss ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="${e(fonts.googleCss)}" rel="stylesheet">` : ''}
+${fontLinks(fonts.googleCss)}
 <style>:root{${siteThemeVars()}}</style>
 <link rel="stylesheet" href="/account/account.css?v=${v}">
 <script type="application/json" id="account-config">${JSON.stringify(cfg).replace(/</g, '\\u003c')}</script>

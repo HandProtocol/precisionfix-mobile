@@ -5,6 +5,8 @@
 // Every palette key becomes a CSS variable (--bg, --accent-2 …; hex keys
 // also get --key-rgb). Each theme ships its own stylesheet at
 // public/assets/themes/<id>.css on top of the shared public/assets/site.css.
+// Fonts are self-hosted (public/assets/fonts/<id>.css, made by
+// scripts/self-host-fonts.mjs from Google Fonts): no visitor request goes to Google.
 
 export const DEFAULT_THEME = 'redline';
 
@@ -14,7 +16,7 @@ export const THEMES = {
     label: 'Redline',
     blurb: 'Motorsport editorial. Black, red, amber. Big condensed type, mono readouts, a red glow off the hero. The look the current site started.',
     fonts: {
-      googleCss: 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap',
+      googleCss: '/assets/fonts/redline.css',
       display: "'Bebas Neue', 'Impact', sans-serif",
       body: "'DM Sans', system-ui, sans-serif",
     },
@@ -34,6 +36,7 @@ export const THEMES = {
       'accent-deep': '#c42a15',
       'accent-hi': '#ff6a4d',
       'on-accent': '#ffffff',
+      'accent-fill': '#de2e18', // behind white text: #e8311a is 4.3:1, this is 4.7:1 (WCAG AA 4.5)
       amber: '#f5a623',
       sheen: '#ffffff',
       'font-mono': "'DM Mono', ui-monospace, monospace",
@@ -59,7 +62,7 @@ export const THEMES = {
     label: 'Blueprint',
     blurb: 'A service manual on engineering paper. Light, gridded, navy ink, international-orange callouts, dimension lines and figure plates. Reads as precision.',
     fonts: {
-      googleCss: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap',
+      googleCss: '/assets/fonts/blueprint.css',
       display: "'Space Grotesk', system-ui, sans-serif",
       body: "'IBM Plex Sans', system-ui, sans-serif",
     },
@@ -107,7 +110,7 @@ export const THEMES = {
     label: 'Chrome & Carbon',
     blurb: 'The dealership lounge after hours. Graphite, brushed silver, champagne gold, a serif headline over a full-bleed photo. Quiet, expensive, photo-first.',
     fonts: {
-      googleCss: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap',
+      googleCss: '/assets/fonts/chrome.css',
       display: "'Cormorant Garamond', 'Times New Roman', serif",
       body: "'Inter', system-ui, sans-serif",
     },
@@ -152,7 +155,7 @@ export const THEMES = {
     label: 'Sunset Garage',
     blurb: 'The friendly neighborhood mechanic, Austin edition. Cream paper, a coral-to-gold sunset, chunky rounded cards, tilted photos and sticker badges. Warm and approachable.',
     fonts: {
-      googleCss: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Nunito:wght@400;600;700;800&display=swap',
+      googleCss: '/assets/fonts/sunset.css',
       display: "'Bricolage Grotesque', system-ui, sans-serif",
       body: "'Nunito', system-ui, sans-serif",
     },
@@ -198,7 +201,7 @@ export const THEMES = {
     label: 'Diagnostic',
     blurb: 'The XENTRY screen, turned into a website. Black, phosphor green, monospace everything, scanlines, a live readout that types itself. For the nerds and the people who hire them.',
     fonts: {
-      googleCss: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap',
+      googleCss: '/assets/fonts/terminal.css',
       display: "'JetBrains Mono', ui-monospace, monospace",
       body: "'JetBrains Mono', ui-monospace, monospace",
     },

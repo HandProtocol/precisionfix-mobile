@@ -49,7 +49,7 @@ test('headTags carries canonical, og, theme-color, fonts and the theme style', (
   assert.match(html, /property="og:site_name"/);
   assert.ok(html.includes(`name="theme-color" content="${config.theme.bg}"`));
   assert.match(html, /<style id="theme">:root\{/);
-  if (config.fonts.googleCss) assert.match(html, /fonts\.googleapis\.com/);
+  if (config.fonts.googleCss) assert.ok(html.includes(`href="${config.fonts.googleCss}"`));
 });
 
 test('img renders srcset for uploads and none for local files', () => {

@@ -16,3 +16,9 @@ test('sitemap: a database hiccup costs the date, never the sitemap', async () =>
   assert.match(xml, /<loc>https:\/\/my-domain\.test\/<\/loc><\/url>/);
   assert.equal(xml.includes('lastmod'), false);
 });
+
+test('sitemap: extra pack pages follow the home page on the production address', async () => {
+  const xml = await sitemapXml({ cfg: { ...cfg, sitemapPages: [{ path: '/privacy/', lastmod: '2026-10-27' }] }, load: async () => ({}) });
+  assert.match(xml, /<loc>https:\/\/my-domain\.test\/privacy\/<\/loc><lastmod>2026-10-27<\/lastmod>/);
+  assert.equal((xml.match(/<url>/g) || []).length, 2);
+});

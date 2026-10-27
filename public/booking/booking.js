@@ -207,7 +207,7 @@
       el('strong', { class: 'cal__title', text: title.charAt(0).toUpperCase() + title.slice(1) }),
       el('button', { type: 'button', class: 'cal__nav', 'aria-label': str('next'), disabled: !canNext, onclick: function () { view = shiftMonth(view, 1); refresh(); } }, ['›']),
     ]));
-    var grid = el('div', { class: 'cal__grid', role: 'grid' });
+    var grid = el('div', { class: 'cal__grid', role: 'group', 'aria-label': title }); // a group of day buttons, not an ARIA grid (no rows/cells)
     var wd = new Intl.DateTimeFormat(locale(), { weekday: 'narrow', timeZone: 'UTC' });
     for (var i = 0; i < 7; i++) grid.appendChild(el('span', { class: 'cal__wd', text: wd.format(new Date(Date.UTC(2023, 0, 1 + i))) })); // 2023-01-01 is a Sunday
     var firstDow = new Date(Date.UTC(r.y, r.m - 1, 1)).getUTCDay();

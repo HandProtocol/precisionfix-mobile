@@ -51,6 +51,16 @@ export function faviconLink(href) {
   return `<link rel="icon"${/\.svg(\?|#|$)/i.test(h) ? ' type="image/svg+xml"' : ''} href="${escapeHtml(h)}">`;
 }
 
+// The theme's font stylesheet (fonts.googleCss). A site path (/assets/fonts/…)
+// is self-hosted: no request leaves the site, so no visitor IP reaches Google.
+// A Google Fonts URL still works and gets its two preconnects.
+export function fontLinks(css) {
+  const href = String(css || '');
+  if (!href) return '';
+  const google = /^https:\/\/fonts\.googleapis\.com\//.test(href);
+  return `${google ? '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' : ''}<link href="${escapeHtml(href)}" rel="stylesheet">`;
+}
+
 export function jsonForScript(value) {
   // Safe to embed inside <script type="application/json">.
   return JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');

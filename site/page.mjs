@@ -267,7 +267,7 @@ export function renderPage({ content, media, origin = '', url }) {
   const bookBtn = (cls) => `<a class="btn btn--primary ${cls}" href="#book">${bi('span', c.hero.cta_primary || 'Book a visit', c.hero.cta_primary_es)}</a>`;
   const callBtn = (cls) => (tel ? `<a class="btn btn--ghost ${cls}" href="${e(tel)}">${B.ICONS.phone}${bi('span', c.hero.cta_secondary || 'Call / Text', c.hero.cta_secondary_es)}</a>` : '');
   const langToggle = c.site.lang_toggle
-    ? `<button class="lang-toggle" type="button" aria-pressed="false" aria-label="Ver en español"><span class="lang-toggle__a">EN</span><span class="lang-toggle__b">ES</span></button>`
+    ? `<button class="lang-toggle" type="button" aria-pressed="false" aria-label="EN ES: ver en español"><span class="lang-toggle__a">EN</span> <span class="lang-toggle__b">ES</span></button>`
     : '';
 
   const jsonLd = B.jsonLd(c, origin, featured, {
@@ -480,6 +480,7 @@ ${
     <a class="foot__brand" href="#top">${B.logo()}<span>${e(c.brand.name)}</span></a>
     ${c.brand.tagline ? bi('p', c.brand.tagline, c.brand.tagline_es, 'foot__tag') : ''}
     <p class="foot__note">${e(c.footer.note.replace('{year}', B.year()))}</p>
+    <p class="foot__links"><a href="/privacy/" data-es="Política de privacidad">Privacy policy</a></p>
     ${B.footerLinks()}
   </div>
 </footer>

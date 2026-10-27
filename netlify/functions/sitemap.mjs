@@ -1,6 +1,7 @@
-// GET /sitemap.xml — one URL (the site is a single page) on the production
-// address (config.productionUrl), so the *.netlify.app alias never advertises
-// itself. <lastmod> is the day the owner last published. Submitted in Google
+// GET /sitemap.xml — the home page on the production address
+// (config.productionUrl), so the *.netlify.app alias never advertises itself.
+// <lastmod> is the day the owner last published. A pack's extra pages ride
+// along from config.sitemapPages: [{ path: '/privacy/', lastmod: 'YYYY-MM-DD' }]. Submitted in Google
 // Search Console and Bing Webmaster Tools (Setup tab).
 
 import { config as site } from './lib/config.mjs';
@@ -18,7 +19,7 @@ export async function sitemapXml({ load = loadSite, cfg = site } = {}) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>${cfg.productionUrl}/</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>
-</urlset>
+${(cfg.sitemapPages || []).map((p) => `  <url><loc>${cfg.productionUrl}${p.path}</loc>${p.lastmod ? `<lastmod>${p.lastmod}</lastmod>` : ''}</url>\n`).join('')}</urlset>
 `;
 }
 

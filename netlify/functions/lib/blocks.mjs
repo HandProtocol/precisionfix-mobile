@@ -6,7 +6,7 @@
 // owner is escaped here or by the caller with e().
 
 import { config, siteName } from './config.mjs';
-import { e, instagramUrl, jsonForScript, paragraphs, smsHref, telHref } from './html.mjs';
+import { e, fontLinks as fontLinkTags, instagramUrl, jsonForScript, paragraphs, smsHref, telHref } from './html.mjs';
 
 export { e, paragraphs, telHref, smsHref, instagramUrl, jsonForScript };
 export { config };
@@ -35,10 +35,7 @@ export function themeStyle(theme, fonts) {
 
 export function fontLinks(fonts) {
   const f = fonts || config.fonts;
-  if (!f.googleCss) return '';
-  return `<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="${e(f.googleCss)}" rel="stylesheet">`;
+  return fontLinkTags(f.googleCss);
 }
 
 // --- head ------------------------------------------------------------------

@@ -17,7 +17,7 @@
     nodes.forEach(function (n) { if (n.dataset.en == null) n.dataset.en = n.innerHTML; n.innerHTML = es ? n.dataset.es : n.dataset.en; });
     phs.forEach(function (n) { if (n.dataset.enPh == null) n.dataset.enPh = n.getAttribute('placeholder') || ''; n.setAttribute('placeholder', es ? n.dataset.esPh : n.dataset.enPh); });
     root.lang = es ? 'es' : 'en';
-    $$('.lang-toggle').forEach(function (b) { b.setAttribute('aria-pressed', es ? 'true' : 'false'); b.setAttribute('aria-label', es ? 'View in English' : 'Ver en español'); });
+    $$('.lang-toggle').forEach(function (b) { b.setAttribute('aria-pressed', es ? 'true' : 'false'); b.setAttribute('aria-label', es ? 'EN ES: view in English' : 'EN ES: ver en español'); }); // the spoken name starts with the visible text (WCAG 2.5.3)
     $$('[data-lang-field]').forEach(function (f) { f.value = es ? 'es' : 'en'; });
   }
   var stored = null; try { stored = localStorage.getItem(KEY); } catch (_) {}

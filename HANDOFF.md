@@ -13,7 +13,7 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
-## RESUME HERE (2026-10-26, later): SEO + booking spam rails built on top of invoices; ONE ship, waiting on koH's OK
+## RESUME HERE (2026-10-26, later): SEO + booking spam rails + invoices; koH said ship; 059 applied, copy + description live; CODE DEPLOY BLOCKED on Alex's Netlify credits
 
 Everything below is BUILT and TESTED (210/210, `npm test`), **nothing applied,
 deployed or committed.** It ships together with the invoices work (same
@@ -77,11 +77,11 @@ submissions … persistence … how to find their booking if they can't find the
 - `assetVersion` `20261026a`. `booking-guard.mjs` added to ENGINE_FILES.
 
 **Ship checklist (operator, in order; each only after the one before works):**
-1. [ ] koH says go.
-2. [ ] Apply `059_precisionfix_invoices.sql` + record it (see the invoices block below).
-3. [ ] rsync → `~/Documents/precisionfix-site`, commit, push main as cryptokoh; check the deploy is `ready`.
-4. [ ] `ship-copy.sql` (small print).
-5. [ ] PATCH `seo.description` (above) through the editor API; log out.
+1. [x] koH says go (2026-10-26).
+2. [x] Applied 059 + recorded (2026-10-26; table empty, column present, service_role can insert and use the sequence).
+3. [x] **Shipped 2026-10-27** as a new mirror push (invoices + SEO + spam rails + privacy + fonts + the pre-publish pass below). The 2026-10-26 push `83847a6` had been skipped for "account credit usage exceeded"; Alex's team `alexb04-uti` is now **Pro, 3000 credits a month, period 27th to 27th** (checked by API 2026-10-27, nothing exceeded). Each production deploy costs credits: batch changes into one push. The mirror `.gitignore` ignores `seo/` and rsync also `--exclude seo`: audits never go to the public repo.
+4. [x] `ship-copy.sql` run 2026-10-26 (safe before deploy: the live `noteFor` hides deposit words until a Stripe key is set).
+5. [x] `seo.description` PATCHed live 2026-10-26 as hand@ (one-time token, logged out); live meta shows the full 158 chars.
 6. [ ] Live checks: `/robots.txt` has the Sitemap line; `/sitemap.xml` has `<lastmod>` on precisionfixmobile.com;
        `/index.html` 301s; view-source on precisionfix-mobile.netlify.app shows the canonical on precisionfixmobile.com;
        og:image is `fm=jpg&w=1200&h=630` (open it and look at the crop); a booking from a `*@handprotocol.org`
@@ -89,7 +89,64 @@ submissions … persistence … how to find their booking if they can't find the
 7. [ ] `node .claude/skills/hand-client-seo/scripts/seo.mjs audit precisionfix --compare --psi --lab --gate`.
 8. [ ] Invoice live checks (invoices block below).
 9. [ ] Owner (Setup tab): Search Console (paste code, submit sitemap) → Bing (import from GSC) → Business Profile.
+   2026-10-27: Search Console ownership TXT (`google-site-verification=…`) added to the apex in Alex's Netlify DNS zone and seen on 8.8.8.8; koH still presses Verify (Domain property) and submits `sitemap.xml`.
 10. [ ] Stripe, when Alex has the key: `rk_test_` first (deposit + invoice paid with 4242), then `rk_live_`; never `pk_`.
+    2026-10-27: Alex ALREADY connected `rk_live_…ukpn` on 2026-10-25 (Payments screen); webhook `/api/booking/stripe` exists and is enabled on his live account; no Checkout sessions yet. **2026-10-27 swap-test PASSED** (koH's call): connected the sandbox `rk_test_…it6w` 13:39:38 UTC → owner-added test booking (stripe-test@handprotocol.org, no owner request mail) → pay link → Stripe Checkout 4242 → `checkout.session.completed` delivered (pending_webhooks 0) → deposit `paid` with pi/cs stored → admin `deposit_refund` → Stripe refund succeeded → reconnected `rk_live_…ukpn` 13:45:30 (new live webhook enabled, sandbox webhook removed) → test row deleted. Alex's inbox got one "deposit paid" owner notice for "HAND Stripe test". The sandbox's business name is Stripe's random "Violet Merry"; the live Checkout shows whatever public business name Alex set in live Stripe (the restricted key cannot read it: check in the dashboard). Invoice Pay still untested (code not deployed).
+
+## Privacy + self-hosted fonts (2026-10-27): built, ships with the block above
+
+koH asked for "pixel law" compliance. Live audit (Playwright, home, booking,
+/account/, /admin/): **zero visitor cookies, no analytics/pixels/session replay,
+nothing in browser storage until the visitor taps EN/ES or starts a booking**;
+the only third party was Google Fonts (visitor IP to Google). Research: the
+pixel suits (CIPA 631/638.51, Florida FSCA, Pennsylvania WESCA) target trackers
+that fire before consent; SB 690 (signed 2026-09-30) ends private 638.51 website
+suits from 2027-01-01; TDPSA exempts SBA small businesses; CalOPPA wants a
+privacy policy from any site collecting PII from Californians. So: **no cookie
+banner** (nothing to consent to; a banner would misdescribe the site), but:
+
+- **Fonts self-hosted.** `public/assets/fonts/<theme>.css` + `files/*.woff2`
+  (latin + latin-ext), made by `node scripts/self-host-fonts.mjs` (Google URLs
+  live in its SOURCES now). `themes.mjs` `googleCss` points at the local CSS;
+  engine `html.mjs` `fontLinks()` adds the Google preconnects only for a Google
+  URL (blocks, admin-page, account-page, booking-page use it); account CSP
+  `font-src 'self'` added.
+- **/privacy/** (EN/ES, chosen theme): `site/privacy.mjs` +
+  `netlify/functions/privacy.mjs` (site pack, not in ENGINE_FILES; CDN tag =
+  cacheTag). Date in `site/privacy-updated.mjs`. Footer link "Privacy policy" on
+  the home page. Contact = content phone (+ email only if the owner publishes
+  one) + "reply to any email". Names Netlify, Supabase, Resend, Stripe, HAND.
+  **If a tracker, processor or form field is ever added, update the page + date.**
+- **Sitemap:** `config.sitemapPages` → `/privacy/` added (engine sitemap.mjs
+  reads it). NOTE the LIVE sitemap is still the old code and lists
+  `precisionfix-mobile.netlify.app/`: submit `sitemap.xml` in Search Console
+  only AFTER this deploy lands.
+- 217/217 tests (`tests/privacy.test.mjs` new, 6); harness walk at 390 + 1280: no
+  third-party requests, 0 cookies, fonts load locally, ES toggle, no overflow.
+  `assetVersion` `20261027a`. Ship = a NEW mirror push (rsync recipe), not a
+  retry of `83847a6` (that commit predates this).
+- Owner check still open: Resend → Domains → precisionfixmobile.com, open and
+  click tracking OFF (email-pixel suits).
+
+**Pre-publish pass (2026-10-27, koH: "fully optimize it then we can publish").**
+Local Lighthouse 12.8.2 on the harness: mobile perf 95 (LCP 2.4 s, CLS 0),
+desktop 100, SEO 100, best practices 96 to 100. Accessibility 92 → **100**:
+- `accent-fill` palette token (redline `#de2e18`, 4.7:1) behind white text:
+  `#e8311a` was 4.3:1. Public CSS uses `var(--accent-fill,var(--accent))`
+  (site.css, booking.css, account.css, redline.css). **blueprint (3.1:1) and
+  sunset (3.2:1) have no fill yet**: add one before Alex picks either theme.
+  The admin CSS was left alone (owner-only).
+- EN/ES button: the spoken name starts with the visible text
+  (`EN ES: ver en español`, site.js swaps it), page.mjs + privacy.mjs.
+- Booking calendar: `role=group` + month label instead of `role=grid`
+  (it had no rows/cells). Engine file; port to `_template` in the merge pass.
+- /privacy/ has og/twitter tags. Font files are `immutable` for a year
+  (`gen-netlify-toml.mjs`, engine). `assetVersion` `20261027b`.
+- New `tests/public-js.test.mjs`: `node --check` on every browser script
+  (a mid-line comment broke site.js during this pass and no test saw it). 218/218.
+- Left on purpose: 4 render-blocking stylesheets (~0.8 s simulated slow 4G;
+  perf already 95), tap-target sizes in the nav (Lighthouse 12 no longer scores
+  them). Harness-only noise: no Image CDN, no compression, no cache headers.
 
 ## Invoices (2026-10-26): built, ships with the block above
 

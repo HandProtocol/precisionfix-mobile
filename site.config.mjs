@@ -4,6 +4,7 @@
 import { CHECKLIST } from './site/checklist.mjs';
 import { BOOKING } from './site/booking.mjs';
 import { DEFAULT_THEME, THEMES, themePickerOptions } from './site/themes.mjs';
+import { UPDATED as PRIVACY_UPDATED } from './site/privacy-updated.mjs';
 
 const base = THEMES[DEFAULT_THEME];
 
@@ -18,9 +19,12 @@ export default {
   supabase: { projectRef: 'vconmgerblqbworcqkvr', schema: 'command' },
 
   // Bump whenever public/assets/** change (site + admin assets both carry it).
-  assetVersion: '20261026a',
+  assetVersion: '20261027b',
 
   fonts: base.fonts,
+
+  // Pages besides the home page (netlify/functions/sitemap.mjs).
+  sitemapPages: [{ path: '/privacy/', lastmod: PRIVACY_UPDATED.iso }],
 
   theme: { ...base.palette, admin: base.admin },
 

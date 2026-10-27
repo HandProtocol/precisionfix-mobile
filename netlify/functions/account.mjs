@@ -184,7 +184,7 @@ export default async (req) => {
   try {
     if (url.pathname === '/account' || url.pathname === '/account/') {
       if (req.method !== 'GET') return json(405, { ok: false, error: 'GET only' });
-      return html(200, renderAccountPage(), { 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'" });
+      return html(200, renderAccountPage(), { 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'" });
     }
     const parts = url.pathname.replace(/^\/api\/account\/?/, '').split('/').filter(Boolean);
     const [action, id] = parts;

@@ -33,6 +33,12 @@ export function netlifyToml() {
   [headers.values]
     Cache-Control = "public, max-age=3600, must-revalidate"
 
+# self-hosted font files are named by their content, so they never change in place
+[[headers]]
+  for = "/assets/fonts/files/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "/img/*"
   [headers.values]

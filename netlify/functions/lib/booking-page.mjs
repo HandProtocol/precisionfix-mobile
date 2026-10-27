@@ -5,7 +5,7 @@
 //     POSTs, the POST shows what happened. No session needed, no phone on GET.
 
 import { config, siteName } from './config.mjs';
-import { escapeHtml as e } from './html.mjs';
+import { escapeHtml as e, fontLinks } from './html.mjs';
 import { siteThemeVars } from './theme.mjs';
 import { bookingRows, outcomeText, usableEmail, whenText } from './booking-email.mjs';
 import { depositTerms } from './booking-deposit.mjs';
@@ -138,7 +138,7 @@ export function pageShell({ lang = 'en', title, body, css = '' }) {
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="${e(t.bg)}">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-${fonts.googleCss ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="${e(fonts.googleCss)}" rel="stylesheet">` : ''}
+${fontLinks(fonts.googleCss)}
 <style>
 :root{${siteThemeVars()}}
 *{box-sizing:border-box;margin:0;padding:0}

@@ -14,7 +14,7 @@ button{background:none;border:0;cursor:pointer}
 ul,ol{list-style:none}
 h1,h2,h3{font-family:var(--font-display);line-height:1.05}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.skip{position:absolute;left:1rem;top:-4rem;z-index:100;padding:.6rem 1rem;background:var(--accent);color:var(--on-accent);border-radius:var(--r-btn)}
+.skip{position:absolute;left:1rem;top:-4rem;z-index:100;padding:.6rem 1rem;background:var(--accent-fill,var(--accent));color:var(--on-accent);border-radius:var(--r-btn)}
 .skip:focus{top:1rem}
 .wrap{width:min(var(--wrap),100% - 2*var(--gutter));margin-inline:auto}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
@@ -24,7 +24,7 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.05}
 .btn svg{width:1.05em;height:1.05em;flex:none;fill:currentColor}
 .btn--sm{padding:.55rem .95rem;font-size:.82rem}
 .btn--lg{padding:1.05rem 1.6rem;font-size:1.02rem}
-.btn--primary{background:var(--accent);color:var(--on-accent)}
+.btn--primary{background:var(--accent-fill,var(--accent));color:var(--on-accent)}
 .btn--ghost{border-color:var(--line-2);color:var(--ink)}
 .btn:hover{transform:translateY(-2px)}
 
@@ -53,9 +53,9 @@ h1,h2,h3{font-family:var(--font-display);line-height:1.05}
 .menu__scrim{position:fixed;inset:0;z-index:39;background:rgb(0 0 0 / .35)}
 .lang-toggle{display:inline-flex;align-items:center;gap:0;padding:0;border:1px solid var(--line-2);border-radius:var(--r-btn);overflow:hidden;font-size:.72rem;font-weight:700;letter-spacing:.08em;line-height:1}
 .lang-toggle span{padding:.5rem .6rem;transition:background .2s,color .2s}
-.lang-toggle .lang-toggle__a{background:var(--accent);color:var(--on-accent)}
+.lang-toggle .lang-toggle__a{background:var(--accent-fill,var(--accent));color:var(--on-accent)}
 .lang-toggle[aria-pressed=true] .lang-toggle__a{background:transparent;color:inherit}
-.lang-toggle[aria-pressed=true] .lang-toggle__b{background:var(--accent);color:var(--on-accent)}
+.lang-toggle[aria-pressed=true] .lang-toggle__b{background:var(--accent-fill,var(--accent));color:var(--on-accent)}
 
 /* hero */
 .hero{position:relative;min-height:100svh;display:flex;flex-direction:column;justify-content:center;padding:calc(var(--nav-h) + 2.5rem) 0 4rem;overflow:hidden;isolation:isolate}
