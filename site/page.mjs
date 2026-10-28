@@ -481,6 +481,7 @@ ${
     ${c.brand.tagline ? bi('p', c.brand.tagline, c.brand.tagline_es, 'foot__tag') : ''}
     <p class="foot__note">${e(c.footer.note.replace('{year}', B.year()))}</p>
     <p class="foot__links"><a href="/privacy/" data-es="Política de privacidad">Privacy policy</a></p>
+    ${bi('p', 'Independent mobile repair. Not affiliated with or endorsed by Mercedes-Benz, BMW, Tesla or any other vehicle maker. Brand names are used only to say which cars we work on.', 'Reparación móvil independiente. Sin afiliación ni respaldo de Mercedes-Benz, BMW, Tesla ni de ningún otro fabricante. Las marcas se usan solo para indicar qué autos atendemos.', 'foot__note')}
     ${B.footerLinks()}
   </div>
 </footer>

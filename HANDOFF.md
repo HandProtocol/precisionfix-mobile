@@ -13,6 +13,17 @@ also lives in the private repo **https://github.com/HandProtocol/precisionfix-mo
 precisionfix-site 2026-10-14; the owner's phone Claude Code works against that repo). Nothing in the
 monorepo is committed.
 
+## LEGAL TO-DO (2026-10-28, koH: keep this list)
+
+Done 2026-10-28: robots.txt disallows `/booking/`, `/account/`, `/invoice`; footer trademark non-affiliation line (EN/ES, `site/page.mjs`).
+Open, in order:
+1. [ ] Certification claims: "Factory Certified (MB Drive)", "same standard as dealership technicians", "same factory software dealerships use", "tools most independent shops do not have" (`site/schema.mjs` credentials, hero, why, FAQ, seo). Alex must show paperwork, or soften to "trained through MB Drive" / "uses XENTRY diagnostics". Live copy is stored in the DB: patch through the editor API too.
+2. [ ] Written quote: "clear quote before I touch anything" has no recorded approval. Add an approve-the-quote step or put the agreed price on the invoice (Texas DTPA).
+3. [ ] Terms page: workmanship warranty, damage limits, unfinished-car storage/tow. Draft, then a Texas lawyer reviews.
+4. [ ] SMS: nothing sends automated texts today. If reminders by text are ever added: consent checkbox + STOP first.
+5. [ ] Alex: garage-keepers + general liability insurance (not code).
+6. [ ] Deposit (PRIORITY): invoice Pay button still untested live; the deposit forfeiture ("kept" on customer cancel or no-show) is the term most likely to be disputed: it is in the FAQ, form and emails, but not in a terms page yet.
+
 ## RESUME HERE (2026-10-26, later): SEO + booking spam rails + invoices; koH said ship; 059 applied, copy + description live; CODE DEPLOY BLOCKED on Alex's Netlify credits
 
 Everything below is BUILT and TESTED (210/210, `npm test`), **nothing applied,
@@ -82,11 +93,11 @@ submissions … persistence … how to find their booking if they can't find the
 3. [x] **Shipped 2026-10-27** as a new mirror push (invoices + SEO + spam rails + privacy + fonts + the pre-publish pass below). The 2026-10-26 push `83847a6` had been skipped for "account credit usage exceeded"; Alex's team `alexb04-uti` is now **Pro, 3000 credits a month, period 27th to 27th** (checked by API 2026-10-27, nothing exceeded). Each production deploy costs credits: batch changes into one push. The mirror `.gitignore` ignores `seo/` and rsync also `--exclude seo`: audits never go to the public repo.
 4. [x] `ship-copy.sql` run 2026-10-26 (safe before deploy: the live `noteFor` hides deposit words until a Stripe key is set).
 5. [x] `seo.description` PATCHed live 2026-10-26 as hand@ (one-time token, logged out); live meta shows the full 158 chars.
-6. [ ] Live checks: `/robots.txt` has the Sitemap line; `/sitemap.xml` has `<lastmod>` on precisionfixmobile.com;
+6. [~] Live checks (2026-10-27, deploy `ee0eecb` ready): robots Sitemap line, sitemap lastmod on the domain + /privacy/, `/index.html` 301, canonical on the domain, og:image jpg 1200×630, fonts local + immutable: all OK. Booking POST as deploy-test@handprotocol.org → ok, repeat → "already" + mail; rows deleted (booking + customer), plus the old `booking-test@` "delete me" row (was confirmed for Oct 30). Find-my-booking and the og:image crop not looked at yet. Original list: `/robots.txt` has the Sitemap line; `/sitemap.xml` has `<lastmod>` on precisionfixmobile.com;
        `/index.html` 301s; view-source on precisionfix-mobile.netlify.app shows the canonical on precisionfixmobile.com;
        og:image is `fm=jpg&w=1200&h=630` (open it and look at the crop); a booking from a `*@handprotocol.org`
        address, then the same address again → "already" + one link mail; Find my booking → mail; delete the test rows.
-7. [ ] `node .claude/skills/hand-client-seo/scripts/seo.mjs audit precisionfix --compare --psi --lab --gate`.
+7. [x] 2026-10-27 live: **95/100 (A), launch gate pass**, 0 fail (was 94). Lighthouse local: mobile 99, desktop 100, a11y/BP/SEO 100. Left: /account/ warns (noindex, fine), lazy-hero false positive, **/privacy/ has no og:image** (add the home share image in the next push). `node .claude/skills/hand-client-seo/scripts/seo.mjs audit precisionfix --compare --psi --lab --gate`.
 8. [ ] Invoice live checks (invoices block below).
 9. [ ] Owner (Setup tab): Search Console (paste code, submit sitemap) → Bing (import from GSC) → Business Profile.
    2026-10-27: Search Console ownership TXT (`google-site-verification=…`) added to the apex in Alex's Netlify DNS zone and seen on 8.8.8.8; koH still presses Verify (Domain property) and submits `sitemap.xml`.

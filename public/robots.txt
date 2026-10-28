@@ -2,5 +2,8 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /api/
+Disallow: /booking/
+Disallow: /account/
+Disallow: /invoice
 
 Sitemap: https://precisionfixmobile.com/sitemap.xml
